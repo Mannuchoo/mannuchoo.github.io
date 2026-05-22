@@ -99,7 +99,7 @@ function getApiBase() {
     return window.location.origin;
 }
 
-const API_BASE = getApiBase();
+window.API_BASE = getApiBase();
 
 function getToken() {
     return localStorage.getItem("token");
@@ -252,14 +252,16 @@ async function fetchProfile() {
 
         if (document.getElementById("roleBadge")) document.getElementById("roleBadge").innerText = (u.role || "user").toUpperCase();
         // Fix: Prepend API_BASE for images when hosted on GitHub Pages
-        const avatarUrl = u.avatar_url ? `${API_BASE}${u.avatar_url}` : `${API_BASE}/uploads/avatars/default.png`;
+
+        const defaultAvatar = "uploads/avatars/default.png";
+        const avatarUrl = u.avatar_url ? `${API_BASE}/${u.avatar_url.replace(/^\//, '')}` : `${API_BASE}/${defaultAvatar}`;
         if (document.getElementById("userAvatar")) {
             document.getElementById("userAvatar").src = avatarUrl;
-            document.getElementById("userAvatar").onerror = function() { this.onerror = null; this.src = `${API_BASE}/uploads/avatars/default.png`; };
+            document.getElementById("userAvatar").onerror = function() { this.onerror = null; this.src = `${API_BASE}/${defaultAvatar}`; };
         }
         if (document.getElementById("headerAvatar")) {
             document.getElementById("headerAvatar").src = avatarUrl;
-            document.getElementById("headerAvatar").onerror = function() { this.onerror = null; this.src = `${API_BASE}/uploads/avatars/default.png`; };
+            document.getElementById("headerAvatar").onerror = function() { this.onerror = null; this.src = `${API_BASE}/${defaultAvatar}`; };
         }
         localStorage.setItem('saved_avatar_url', avatarUrl);
     }

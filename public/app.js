@@ -126,7 +126,7 @@ async function loadModules() {
 
     for (const mod of modules) {
         try {
-            const res = await fetch(`modules/${mod.file}`);
+            const res = await fetch(`./modules/${mod.file}`);
             const html = await res.text();
             const el = document.getElementById(mod.id);
             if (el) el.innerHTML = html;
@@ -993,7 +993,7 @@ function initAvatarUpload() {
             const token = localStorage.getItem("token");
             if (!token) return alert("You must be logged in to save your avatar.");
 
-            const res = await fetch('/api/update-avatar', {
+            const res = await fetch(`${API_BASE}/api/update-avatar`, {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`
@@ -1132,7 +1132,7 @@ function activateModules() {
                 messagesEl.scrollTop = messagesEl.scrollHeight;
 
                 try {
-                    const res = await apiFetch('ai/chat', { message: text, engine });
+                    const res = await apiFetch('ai/chat', { method: 'POST', body: { message: text, engine } });
                     if (res && res.success) {
                         const replyHtml = `<div style="color:#cfc; margin-bottom:8px;"><strong>Assistant (${res.engine}):</strong> ${escapeHtml(res.reply || '')}</div>`;
                         messagesEl.insertAdjacentHTML('beforeend', replyHtml);

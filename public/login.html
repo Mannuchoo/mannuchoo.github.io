@@ -102,7 +102,10 @@
         async function postJson(url, body) {
             // Check if API_BASE is properly configured
             if (!API_BASE) {
-                throw new Error("❌ Backend not configured. Follow these steps:\n\n1. Open a terminal and run: npm start\n2. In another terminal, run: ngrok http 3000\n3. Copy the ngrok URL (e.g., https://xxxxx.ngrok-free.app)\n4. Paste in console: localStorage.setItem('backend_url', 'your-ngrok-url')\n5. Reload this page");
+                if (typeof showBackendSetupPrompt === 'function') {
+                    showBackendSetupPrompt();
+                }
+                throw new Error("❌ Backend not configured. Use the on-screen setup prompt or set localStorage.backend_url to your ngrok URL and reload.");
             }
 
             // Prepend API_BASE from api.js
@@ -113,7 +116,7 @@
             });
 
             const data = await res.json();
-            if (!res.ok) throw new Error(data.message || "Server error");
+            if (!res.ok) throw new Error(data.message || "Server error. Check connection.");
             return data;
         }
 
@@ -163,7 +166,7 @@
                 alert(data.message || "Login failed");
             } catch (err) {
                 console.error("Login error:", err);
-                alert("Server error. Check connection.");
+                alert(err.message || "Server error. Check connection.");
             }
         }
 
@@ -203,7 +206,7 @@
                 alert(data.message || "Registration failed");
             } catch (err) {
                 console.error("Register error:", err);
-                alert("Server error");
+                alert(err.message || "Server error. Check connection.");
             }
         }
 
@@ -228,7 +231,8 @@
                 status.innerText = data.success ? "Reset link sent to your email!" : (data.message || "Failed");
                 if(data.success) setTimeout(closeForgotModal, 3000);
             } catch (err) {
-                status.innerText = "Server error";
+                status.style.color = "#ff4444";
+                status.innerText = err.message || "Server error. Check connection.";
             }
         }
 

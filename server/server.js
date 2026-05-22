@@ -366,7 +366,6 @@ async function callGemini(promptText, opts = {}) {
                     maxOutputTokens: opts.maxOutputTokens ?? 320
                 }
             };
-            // Corrected to use v1beta as requested
             const res = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${opts.model || 'gemini-1.5-flash'}:generateContent?key=${process.env.GEMINI_API_KEY}`, body);
             return res.data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
         } catch (err) {
@@ -1264,27 +1263,37 @@ const sendDailyMarkets = () => {
 // --- SYNC LOGIC ---
 const syncAllMarkets = async () => {
     console.log(`[${new Date().toLocaleTimeString()}] 🔄 STARTING GLOBAL SYNC...`);
-  // --- 2. CRYPTO MARKETS (Using CoinGecko) ---
+    // --- 2. CRYPTO MARKETS (Using CoinGecko + AI Enhancements) ---
     try {
-        const cryptoRes = await axios.get('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana&price_change_percentage=24h');
+        const cryptoRes = await axios.get('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false&price_change_percentage=24h');
         
         const marketDate = formatNairobiDate();
-        const expiryTime = new Date(new Date().setHours(23, 59, 59, 999)).toISOString(); // Closes at end of day
+        const expiryTime = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
 
-        cryptoRes.data.forEach(coin => {
-const marketId = `crypto_${coin.id}_${marketDate}`;            
-            const targetPrice = (coin.current_price * 1.02).toFixed(2); // 2% target
-            const title = `Will ${coin.name} hit $${targetPrice} today?`;
-            const description = `${coin.name} is trading at $${coin.current_price?.toLocaleString?.() || coin.current_price}. 24h change: ${Number(coin.price_change_percentage_24h || 0).toFixed(2)}%.`;
+        for (const coin of cryptoRes.data) {
+            const marketId = `crypto_${coin.id}_${marketDate}`;            
+            
+            // Fallback values
+            let title = `Will ${coin.name} hit $${(coin.current_price * 1.02).toFixed(2)} today?`;
+            let description = `${coin.name} is trading at $${coin.current_price?.toLocaleString()}. 24h change: ${Number(coin.price_change_percentage_24h || 0).toFixed(2)}%.`;
+
+            // Try AI title generation
+            try {
+                const aiPrompt = `Generate a catchy prediction market question for ${coin.name} (Current Price: $${coin.current_price}, 24h Change: ${coin.price_change_percentage_24h}%). Keep it under 10 words. Format as a question.`;
+                const aiRes = await callAI({ engine: 'gemini', promptText: aiPrompt });
+                if (aiRes?.text) title = aiRes.text.replace(/"/g, '').trim();
+            } catch (aiE) { console.warn(`AI title failed for ${coin.id}`); }
+
             const content = [
                 `Current price: $${coin.current_price}`,
                 `24h high: $${coin.high_24h}`,
                 `24h low: $${coin.low_24h}`,
                 `Market cap: $${coin.market_cap}`,
-                `24h volume: $${coin.total_volume}`
+                `24h volume: $${coin.total_volume}`,
+                `Insight: ${buildPersonaInsight(title)}`
             ].join("\n");
 
-            db.run(
+            await dbRun(
                 `INSERT INTO markets (id, title, description, content, media_url, media_type, category, sideA, sideB, startTime) 
                  VALUES (?, ?, ?, ?, ?, 'image', 'crypto', 'YES', 'NO', ?)
                  ON CONFLICT(id) DO UPDATE SET
@@ -1292,13 +1301,12 @@ const marketId = `crypto_${coin.id}_${marketDate}`;
                     description = excluded.description,
                     content = excluded.content,
                     media_url = excluded.media_url,
-                    media_type = excluded.media_type,
                     startTime = excluded.startTime,
                     timestamp = CURRENT_TIMESTAMP,
                     status = 'open'`,
                 [marketId, title, description, content, coin.image || null, expiryTime]
             );
-        });
+        }
     } catch (e) { console.error("🪙 Crypto Sync Error:", e.message); }
 
     try {
@@ -2517,7 +2525,8 @@ app.post('/api/admin/approve-withdraw', authenticateAdmin, async (req, res) => {
         success: false, 
         message: "Server Error: " + err.message 
     });
-}});
+    }
+});
 
 // --- REJECT WITHDRAWAL ---
 app.post('/api/admin/reject-withdraw', authenticateAdmin, async (req, res) => {
