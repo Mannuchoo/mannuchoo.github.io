@@ -56,10 +56,10 @@ app.use(
         contentSecurityPolicy: {
      directives: {
         "upgrade-insecure-requests": null,
-        "script-src": ["'self'", "'unsafe-inline'"], // Allows your script block
+                "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdn.socket.io"], // Allow common CDNs as needed
         "script-src-attr": ["'unsafe-inline'"],
         "style-src": ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-        "connect-src": ["'self'", "https://ipapi.co", "https://*.ipapi.co", "https://polysoko.com", "https://api.weatherapi.com", "https://nominatim.openstreetmap.org", "https://*.loca.lt", "https://*.ngrok-free.app", "ws:", "wss:", "https://solid-files-enjoy.loca.lt"],
+                "connect-src": ["'self'", "https://ipapi.co", "https://*.ipapi.co", "https://polysoko.com", "https://api.weatherapi.com", "https://nominatim.openstreetmap.org", "https://*.loca.lt", "https://*.ngrok-free.app", "https://*.ngrok-free.dev", "ws:", "wss:", "https://solid-files-enjoy.loca.lt"],
         "frame-src": ["'self'", "https://www.youtube.com", "https://www.youtube-nocookie.com"],
         "media-src": ["'self'", "data:", "blob:", "https:"],
         "img-src": ["'self'", "data:", "https:"],
@@ -69,6 +69,12 @@ app.use(
 );
 app.use(express.json());
 app.use(cors());
+// Serve a default avatar fallback when the explicit default.png file is missing
+app.get('/uploads/avatars/default.png', (req, res) => {
+    const fallback = path.join(publicPath, 'uploads', 'avatars', 'avatar-1778927214826-353713367.jpg');
+    if (fs.existsSync(fallback)) return res.sendFile(fallback);
+    res.status(404).end();
+});
 app.use(express.static(publicPath));
 
 app.use(rateLimit({
