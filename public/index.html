@@ -25,15 +25,13 @@
     <!-- GitHub Pages Backend Configuration -->
     <script>
         if (window.location.hostname.includes('github.io')) {
-            const savedBackend = localStorage.getItem('backend_url');
-            if (!savedBackend) {
-                console.log('📍 GitHub Pages detected. Configure backend:');
-                console.log('1. Start local server: npm start');
-                console.log('2. Expose with ngrok: ngrok http 3000');
-                console.log('3. Copy the ngrok URL (https://xxxxx.ngrok-free.app)');
-                console.log('4. Run: localStorage.setItem("backend_url", "https://your-ngrok-url.ngrok-free.app")');
-                console.log('5. Reload this page');
-            }
+            window.addEventListener('DOMContentLoaded', () => {
+                if (window.showBackendSetupPrompt) {
+                    window.showBackendSetupPrompt();
+                } else {
+                    console.log('📍 GitHub Pages detected. If no prompt appears, set localStorage.backend_url to your ngrok URL and reload.');
+                }
+            });
         }
     </script>
 

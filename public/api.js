@@ -2,24 +2,104 @@
 // For GitHub Pages (mannuchoo.github.io):
 // 1. Start your local server: npm start (runs on localhost:3000)
 // 2. Expose with ngrok: ngrok http 3000
-// 3. Set in console: localStorage.setItem("backend_url", "https://your-ngrok-url.ngrok-free.app")
-// 4. Reload the page
-const API_BASE = (() => {
-    if (window.location.hostname.includes('github.io')) {
-        const backend = localStorage.getItem("backend_url");
+// 3. Save the ngrok URL in localStorage and reload the page
+// 4. Use the on-page prompt if available
+const isGitHubPages = window.location.hostname.includes('github.io');
+
+function getSavedBackendUrl() {
+    return localStorage.getItem("backend_url") || "";
+}
+
+function resolveBackendUrl(rawUrl) {
+    if (!rawUrl) return "";
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return "";
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+        return `https://${trimmed}`;
+    }
+    return trimmed.replace(/\/+$/, "");
+}
+
+function showBackendSetupPrompt() {
+    if (!isGitHubPages) return;
+    if (document.getElementById("ghBackendSetupPrompt")) return;
+
+    const existing = getSavedBackendUrl();
+    const banner = document.createElement("div");
+    banner.id = "ghBackendSetupPrompt";
+    banner.style = `
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(100%, 520px);
+        z-index: 99999;
+        background: rgba(11, 20, 29, 0.98);
+        border: 1px solid rgba(0,255,136,0.45);
+        border-radius: 18px;
+        padding: 18px 20px;
+        color: white;
+        box-shadow: 0 18px 45px rgba(0,0,0,0.45);
+        font-family: Inter, sans-serif;
+    `;
+    banner.innerHTML = `
+        <div style="display:flex; align-items:flex-start; gap: 14px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:220px;">
+                <strong style="font-size:1rem; color:#00ff88;">GitHub Pages Backend Required</strong>
+                <p style="margin: 8px 0 12px; color:#b7d8c8; font-size:0.92rem; line-height:1.45;">
+                    This site needs your backend tunnel URL. Enter the ngrok URL below and save it to continue.
+                </p>
+            </div>
+            <button id="ghBackendSetupCloseBtn" style="border:none; background:transparent; color:#8b98a5; font-size:1.2rem; cursor:pointer;">✕</button>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <input id="ghBackendUrlInput" placeholder="https://xxxxx.ngrok-free.app" value="${existing}" style="flex:1; min-width:220px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:#0b0c10; color:white; padding:12px 14px; font-size:0.95rem;" />
+            <button id="ghBackendSetupSaveBtn" style="border:none; border-radius:12px; padding:12px 18px; background:#00ff88; color:#050505; font-weight:800; cursor:pointer;">Save</button>
+            <button id="ghBackendSetupClearBtn" style="border:none; border-radius:12px; padding:12px 18px; background:#1c1d22; color:#ccc; cursor:pointer;">Clear</button>
+        </div>
+        <div id="ghBackendSetupMessage" style="margin-top:12px; color:#d4d4d4; font-size:0.88rem;"></div>
+    `;
+
+    document.body.appendChild(banner);
+
+    document.getElementById("ghBackendSetupCloseBtn").onclick = () => banner.remove();
+    document.getElementById("ghBackendSetupSaveBtn").onclick = () => {
+        const input = document.getElementById("ghBackendUrlInput");
+        const rawUrl = input.value;
+        const resolved = resolveBackendUrl(rawUrl);
+        const msg = document.getElementById("ghBackendSetupMessage");
+        if (!resolved) {
+            msg.textContent = "Enter a valid ngrok URL to continue.";
+            return;
+        }
+        localStorage.setItem("backend_url", resolved);
+        msg.textContent = "Saved! Reloading page...";
+        setTimeout(() => location.reload(), 800);
+    };
+    document.getElementById("ghBackendSetupClearBtn").onclick = () => {
+        localStorage.removeItem("backend_url");
+        document.getElementById("ghBackendUrlInput").value = "";
+        document.getElementById("ghBackendSetupMessage").textContent = "Backend URL cleared.";
+    };
+}
+
+function getApiBase() {
+    if (isGitHubPages) {
+        const backend = resolveBackendUrl(getSavedBackendUrl());
         if (!backend) {
-            console.error('🚨 GITHUB PAGES SETUP REQUIRED');
-            console.error('1. Terminal 1: npm start (starts server on localhost:3000)');
-            console.error('2. Terminal 2: ngrok http 3000');
-            console.error('3. Copy the ngrok URL and run:');
-            console.error('   localStorage.setItem("backend_url", "https://your-ngrok-url.ngrok-free.app")');
-            console.error('4. Reload the page');
+            if (document.readyState !== "loading") {
+                showBackendSetupPrompt();
+            } else {
+                window.addEventListener("DOMContentLoaded", showBackendSetupPrompt);
+            }
             return "";
         }
         return backend;
     }
     return window.location.origin;
-})();
+}
+
+const API_BASE = getApiBase();
 
 function getToken() {
     return localStorage.getItem("token");
@@ -27,8 +107,9 @@ function getToken() {
 
 async function apiFetch(endpoint, options = {}) {
     // Check if backend is configured when on GitHub Pages
-    if (window.location.hostname.includes('github.io') && !API_BASE) {
-        throw new Error("Backend not configured for GitHub Pages. Check console for setup instructions.");
+    if (isGitHubPages && !API_BASE) {
+        showBackendSetupPrompt();
+        throw new Error("Backend not configured for GitHub Pages. Use the on-screen setup prompt or set localStorage.backend_url and reload.");
     }
 
     const token = localStorage.getItem("token");
