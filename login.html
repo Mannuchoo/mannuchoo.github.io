@@ -105,13 +105,17 @@
                 if (typeof showBackendSetupPrompt === 'function') {
                     showBackendSetupPrompt();
                 }
-                throw new Error("❌ Backend not configured. Use the on-screen setup prompt or set localStorage.backend_url to your ngrok URL and reload.");
+                throw new Error("Backend not configured. Start the PolySoko backend or set localStorage.backend_url_override and reload.");
             }
 
             // Prepend API_BASE from api.js
             const res = await fetch(`${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "ngrok-skip-browser-warning": "true",
+                    "Bypass-Tunnel-Reminder": "true"
+                },
                 body: JSON.stringify(body)
             });
 

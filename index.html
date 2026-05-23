@@ -37,19 +37,6 @@
         })();
     </script>
     
-    <!-- GitHub Pages Backend Configuration -->
-    <script>
-        if (window.location.hostname.includes('github.io')) {
-            window.addEventListener('DOMContentLoaded', () => {
-                if (window.showBackendSetupPrompt) {
-                    window.showBackendSetupPrompt();
-                } else {
-                    console.log('📍 GitHub Pages detected. If no prompt appears, set localStorage.backend_url to your ngrok URL and reload.');
-                }
-            });
-        }
-    </script>
-
     <script src="ui.js" defer></script>
     <script src="api.js" defer></script>
     <script src="app.js" defer></script>

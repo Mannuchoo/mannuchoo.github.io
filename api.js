@@ -1,13 +1,8 @@
-// Automatically detect if running on GitHub Pages and point to the backend
-// For GitHub Pages (mannuchoo.github.io):
-// 1. Start your local server: npm start (runs on localhost:3000)
-// 2. Expose with ngrok: ngrok http 3000
-// 3. Save the ngrok URL in localStorage and reload the page
-// 4. Use the on-page prompt if available
 const isGitHubPages = window.location.hostname.includes('github.io');
+const DEFAULT_GITHUB_PAGES_API_BASE = "https://uncorrelative-unportly-catalina.ngrok-free.dev";
 
 function getSavedBackendUrl() {
-    return localStorage.getItem("backend_url") || "";
+    return localStorage.getItem("backend_url_override") || "";
 }
 
 function resolveBackendUrl(rawUrl) {
@@ -22,6 +17,7 @@ function resolveBackendUrl(rawUrl) {
 
 function showBackendSetupPrompt() {
     if (!isGitHubPages) return;
+    if (window.API_BASE) return;
     if (document.getElementById("ghBackendSetupPrompt")) return;
 
     const existing = getSavedBackendUrl();
@@ -47,7 +43,7 @@ function showBackendSetupPrompt() {
             <div style="flex:1; min-width:220px;">
                 <strong style="font-size:1rem; color:#00ff88;">GitHub Pages Backend Required</strong>
                 <p style="margin: 8px 0 12px; color:#b7d8c8; font-size:0.92rem; line-height:1.45;">
-                    This site needs your backend tunnel URL. Enter the ngrok URL below and save it to continue.
+                    This site needs a live backend URL. Enter an override URL below only if the default backend is unavailable.
                 </p>
             </div>
             <button id="ghBackendSetupCloseBtn" style="border:none; background:transparent; color:#8b98a5; font-size:1.2rem; cursor:pointer;">✕</button>
@@ -72,12 +68,12 @@ function showBackendSetupPrompt() {
             msg.textContent = "Enter a valid ngrok URL to continue.";
             return;
         }
-        localStorage.setItem("backend_url", resolved);
+        localStorage.setItem("backend_url_override", resolved);
         msg.textContent = "Saved! Reloading page...";
         setTimeout(() => location.reload(), 800);
     };
     document.getElementById("ghBackendSetupClearBtn").onclick = () => {
-        localStorage.removeItem("backend_url");
+        localStorage.removeItem("backend_url_override");
         document.getElementById("ghBackendUrlInput").value = "";
         document.getElementById("ghBackendSetupMessage").textContent = "Backend URL cleared.";
     };
@@ -85,7 +81,7 @@ function showBackendSetupPrompt() {
 
 function getApiBase() {
     if (isGitHubPages) {
-        const backend = resolveBackendUrl(getSavedBackendUrl());
+        const backend = resolveBackendUrl(getSavedBackendUrl()) || DEFAULT_GITHUB_PAGES_API_BASE;
         if (!backend) {
             if (document.readyState !== "loading") {
                 showBackendSetupPrompt();
@@ -101,6 +97,15 @@ function getApiBase() {
 
 window.API_BASE = getApiBase();
 
+function apiUrl(path) {
+    if (!path) return window.API_BASE || window.location.origin;
+    if (/^https?:\/\//i.test(path)) return path;
+    const normalized = path.startsWith("/") ? path : `/${path}`;
+    return `${window.API_BASE || window.location.origin}${normalized}`;
+}
+
+window.apiUrl = apiUrl;
+
 function getToken() {
     return localStorage.getItem("token");
 }
@@ -109,7 +114,7 @@ async function apiFetch(endpoint, options = {}) {
     // Check if backend is configured when on GitHub Pages
     if (isGitHubPages && !API_BASE) {
         showBackendSetupPrompt();
-        throw new Error("Backend not configured for GitHub Pages. Use the on-screen setup prompt or set localStorage.backend_url and reload.");
+        throw new Error("Backend not configured for GitHub Pages. Start the PolySoko backend or set localStorage.backend_url_override and reload.");
     }
 
     const token = localStorage.getItem("token");
@@ -120,7 +125,8 @@ async function apiFetch(endpoint, options = {}) {
     const url = `${API_BASE}${path}`;
     const headers = {
         'Content-Type': 'application/json',
-        'Bypass-Tunnel-Reminder': 'true', // Header for Localtunnel/ngrok
+        'Bypass-Tunnel-Reminder': 'true',
+        'ngrok-skip-browser-warning': 'true',
         ...options.headers
     };
 
@@ -400,7 +406,9 @@ window.placeBet = async function(marketId, side, amount) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
+                "Authorization": `Bearer ${token}`,
+                "ngrok-skip-browser-warning": "true",
+                "Bypass-Tunnel-Reminder": "true"
             },
             body: JSON.stringify({ marketId, side, amount })
         });
@@ -573,11 +581,13 @@ window.handleWithdrawSubmit = async function() {
     }
 
     try {
-        const response = await fetch('/api/withdraw', {
+        const response = await fetch(apiUrl('/api/withdraw'), {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'ngrok-skip-browser-warning': 'true',
+                'Bypass-Tunnel-Reminder': 'true'
             },
             body: JSON.stringify({ amount: amount })
         });
@@ -651,11 +661,13 @@ window.handleDepositSubmit = async function() {
     btn.disabled = true;
 
     try {
-        const response = await fetch('/api/stkpush', {
+        const response = await fetch(apiUrl('/api/stkpush'), {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'ngrok-skip-browser-warning': 'true',
+                'Bypass-Tunnel-Reminder': 'true'
             },
             body: JSON.stringify({ amount: amount })
         });
@@ -676,8 +688,12 @@ window.handleDepositSubmit = async function() {
     }
 };
 async function refreshBalance() {
-    const res = await fetch('/api/user/sync-wallet', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    const res = await fetch(apiUrl('/api/user/sync-wallet'), {
+        headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'ngrok-skip-browser-warning': 'true',
+            'Bypass-Tunnel-Reminder': 'true'
+        }
     });
     const data = await res.json();
     if (data.success) {
