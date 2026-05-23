@@ -996,7 +996,9 @@ function initAvatarUpload() {
             const res = await fetch(`${API_BASE}/api/update-avatar`, {
                 method: "POST",
                 headers: {
-                    Authorization: `Bearer ${token}`
+                    Authorization: `Bearer ${token}`,
+                    "ngrok-skip-browser-warning": "true",
+                    "Bypass-Tunnel-Reminder": "true"
                 },
                 body: formData
             });
@@ -1009,10 +1011,11 @@ function initAvatarUpload() {
             }
 
             if (data.success) {
-                const avatarUrl = data.avatarUrl || data.url;
+                const avatarUrl = window.assetUrl ? window.assetUrl(data.avatarUrl || data.url || data.avatarPath) : (data.avatarUrl || data.url || data.avatarPath);
                 avatar.src = avatarUrl;
                 const headerAvatar = document.getElementById("headerAvatar");
                 if (headerAvatar && avatarUrl) headerAvatar.src = avatarUrl;
+                if (avatarUrl) localStorage.setItem('saved_avatar_url', avatarUrl);
                 selectedAvatarFile = null;
                 actions.classList.remove("active");
                 fetchProfile?.();

@@ -45,6 +45,7 @@ if (!process.env.JWT_SECRET) {
 }
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_TILL = process.env.MPESA_TILL || process.env.BUYGOODS_TILL || '4440728';
+const DEFAULT_GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
 const at = AfricasTalking({
     apiKey: process.env.AT_API_KEY,
     username: process.env.AT_USERNAME
@@ -355,32 +356,45 @@ async function callOpenAI(model, messages, opts = {}) {
 }
 
 async function callGemini(promptText, opts = {}) {
+    const modelCandidates = [
+        opts.model,
+        process.env.GEMINI_MODEL,
+        ...DEFAULT_GEMINI_MODELS
+    ].filter(Boolean);
+    const models = [...new Set(modelCandidates)];
     const maxAttempts = 3;
-    let attempt = 0;
-    while (attempt < maxAttempts) {
-        try {
-            const body = {
-                contents: [{ parts: [{ text: promptText }] }],
-                generationConfig: {
-                    temperature: opts.temperature ?? 0.6,
-                    maxOutputTokens: opts.maxOutputTokens ?? 320
+
+    for (const model of models) {
+        let attempt = 0;
+        while (attempt < maxAttempts) {
+            try {
+                const body = {
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: {
+                        temperature: opts.temperature ?? 0.6,
+                        maxOutputTokens: opts.maxOutputTokens ?? 320
+                    }
+                };
+                const res = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, body);
+                return res.data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+            } catch (err) {
+                const status = err?.response?.status;
+                if (status === 404 || status === 400) {
+                    console.warn(`Gemini model unavailable: ${model} (${status})`);
+                    break;
                 }
-            };
-            const res = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${opts.model || 'gemini-1.5-flash'}:generateContent?key=${process.env.GEMINI_API_KEY}`, body);
-            return res.data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
-        } catch (err) {
-            const status = err?.response?.status;
-            if (status === 429) {
-                attempt++;
-                const delay = 300 * Math.pow(2, attempt);
-                await new Promise(r => setTimeout(r, delay));
-                continue;
+                if (status === 429) {
+                    attempt++;
+                    const delay = 300 * Math.pow(2, attempt);
+                    await new Promise(r => setTimeout(r, delay));
+                    continue;
+                }
+                throw err;
             }
-            throw err;
         }
     }
-    const e = new Error('Gemini rate-limited');
-    e.code = 429;
+    const e = new Error(`No configured Gemini model could generate content. Tried: ${models.join(', ')}`);
+    e.code = 'NO_GEMINI_MODEL';
     throw e;
 }
 
@@ -401,7 +415,7 @@ async function callAI({ engine = 'gpt', messages = null, promptText = '' }) {
 
     if (useGemini) {
         try {
-            const resp = await callGemini(promptText || (messages?.map(m => m.content).join('\n') || ''), { model: 'gemini-1.5-flash', temperature: 0.6, maxOutputTokens: 320 });
+            const resp = await callGemini(promptText || (messages?.map(m => m.content).join('\n') || ''), { temperature: 0.6, maxOutputTokens: 320 });
             if (resp) return { engine: 'gemini', text: resp };
         } catch (err) {
             console.error("❌ Gemini Error:", err.response?.status || err.message);
@@ -471,6 +485,14 @@ const upload = multer({
         cb(new Error("Only images are allowed"));
     }
 });
+
+function publicAssetUrl(req, assetPath) {
+    if (!assetPath) return null;
+    if (/^https?:\/\//i.test(assetPath)) return assetPath;
+    const cleanPath = assetPath.startsWith('/') ? assetPath : `/${assetPath}`;
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    return `${proto}://${req.get('host')}${cleanPath}`;
+}
 
 // --- DB SCHEMA & AUTO-MIGRATION ---
 db.serialize(() => {
@@ -2697,16 +2719,17 @@ app.post('/api/update-avatar', authenticate, upload.single('avatar'), (req, res)
             }
         }
 
-        const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+        const avatarPath = `/uploads/avatars/${req.file.filename}`;
         db.run(
             `UPDATE users SET avatar_url = ? WHERE phone = ?`, 
-            [avatarUrl, req.user.phone], 
+            [avatarPath, req.user.phone], 
             (err) => {
                 if (err) {
                     console.error("Avatar update failed:", err.message);
                     return res.status(500).json({ success: false, message: "Database update failed" });
                 }
-                res.json({ success: true, avatarUrl, url: avatarUrl });
+                const avatarUrl = publicAssetUrl(req, avatarPath);
+                res.json({ success: true, avatarUrl, url: avatarUrl, avatarPath });
             }
         );
     });

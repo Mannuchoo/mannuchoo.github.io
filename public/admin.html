@@ -5,13 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Updated CSP to allow both local and CDN as backup -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
-        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; 
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io; 
         style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; 
-        connect-src 'self' https://ipapi.co https://*.ipapi.co https://polysoko.com https://api.weatherapi.com https://nominatim.openstreetmap.org https://*.loca.lt https://*.ngrok-free.app ws: wss:; 
+        connect-src 'self' https://ipapi.co https://*.ipapi.co https://polysoko.com https://api.weatherapi.com https://nominatim.openstreetmap.org https://*.loca.lt https://*.ngrok-free.app https://*.ngrok-free.dev ws: wss:; 
         img-src 'self' data: https:; 
         media-src 'self' data: blob: https:; 
         frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com;">
-    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const ADMIN_DEFAULT_API_BASE = "https://uncorrelative-unportly-catalina.ngrok-free.dev";
+        const ADMIN_API_BASE = window.location.hostname.includes('github.io')
+            ? (localStorage.getItem("backend_url_override") || ADMIN_DEFAULT_API_BASE)
+            : window.location.origin;
+        function adminApiUrl(path) {
+            if (/^https?:\/\//i.test(path)) return path;
+            const normalized = path.startsWith("/") ? path : `/${path}`;
+            return `${ADMIN_API_BASE}${normalized}`;
+        }
+        function adminAssetUrl(path, fallback = "/uploads/avatars/default.png") {
+            const value = path || fallback;
+            if (/^(data:|blob:|https?:\/\/)/i.test(value)) return value;
+            return adminApiUrl(value);
+        }
+        document.write(`<script src="${window.location.hostname.includes('github.io') ? 'https://cdn.socket.io/4.7.2/socket.io.min.js' : '/socket.io/socket.io.js'}"><\/script>`);
+    </script>
     <title>PolySoko | Admin Panel</title>
 </head>
 <style>
@@ -1330,7 +1346,7 @@ button, input, select {
 </div>
 
 <script>
-const socket = io({ auth: { token: localStorage.getItem("token") } });
+const socket = io(ADMIN_API_BASE, { auth: { token: localStorage.getItem("token") } });
 
 socket.on('connect', () => {
     console.log("✅ Admin Socket Connected");
@@ -1347,11 +1363,12 @@ socket.on('newMarketPending', (data) => {
 const API = {
     async request(path, method = 'GET', body = null) {
         try {
-            const res = await fetch('/api' + path, {
+            const res = await fetch(adminApiUrl('/api' + path), {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
                     'Bypass-Tunnel-Reminder': 'true',
+                    'ngrok-skip-browser-warning': 'true',
                     Authorization: `Bearer ${localStorage.getItem("token")}`
                 },
                 body: body ? JSON.stringify(body) : null
@@ -2105,18 +2122,24 @@ setInterval(loadTransactions, 30000);
 // SuperAdmin profile populate & edit
 (async function(){
     try {
-        const profileRes = await fetch('/api/profile', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+        const profileRes = await fetch(adminApiUrl('/api/profile'), {
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem('token')}`,
+                'Bypass-Tunnel-Reminder': 'true',
+                'ngrok-skip-browser-warning': 'true'
+            }
+        });
         const data = await profileRes.json();
         if (data && data.user) {
             const u = data.user;
-            const avatarUrl = u.avatar_url || u.avatar || '/uploads/avatars/default.png';
+            const avatarUrl = adminAssetUrl(u.avatar_url || u.avatar);
             document.getElementById('superName').innerText = u.name || 'SuperAdmin';
             document.getElementById('superPhone').innerText = u.phone || '';
             document.getElementById('superEmail').innerText = u.email || 'No email set';
             const avatarImg = document.getElementById('superAdminAvatar');
             if (avatarImg) {
                 avatarImg.src = avatarUrl;
-                avatarImg.onerror = function() { this.onerror = null; this.src = '/uploads/avatars/default.png'; };
+                avatarImg.onerror = function() { this.onerror = null; this.src = adminAssetUrl('/uploads/avatars/default.png'); };
             }
         }
     } catch(e) { console.warn('Could not load superadmin profile', e); }

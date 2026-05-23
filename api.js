@@ -106,6 +106,15 @@ function apiUrl(path) {
 
 window.apiUrl = apiUrl;
 
+function assetUrl(path, fallback = "") {
+    const value = path || fallback;
+    if (!value) return "";
+    if (/^(data:|blob:|https?:\/\/)/i.test(value)) return value;
+    return apiUrl(value);
+}
+
+window.assetUrl = assetUrl;
+
 function getToken() {
     return localStorage.getItem("token");
 }
@@ -260,14 +269,15 @@ async function fetchProfile() {
         // Fix: Prepend API_BASE for images when hosted on GitHub Pages
 
         const defaultAvatar = "uploads/avatars/default.png";
-        const avatarUrl = u.avatar_url ? `${API_BASE}/${u.avatar_url.replace(/^\//, '')}` : `${API_BASE}/${defaultAvatar}`;
+        const avatarUrl = assetUrl(u.avatar_url, defaultAvatar);
+        const fallbackAvatarUrl = assetUrl(defaultAvatar);
         if (document.getElementById("userAvatar")) {
             document.getElementById("userAvatar").src = avatarUrl;
-            document.getElementById("userAvatar").onerror = function() { this.onerror = null; this.src = `${API_BASE}/${defaultAvatar}`; };
+            document.getElementById("userAvatar").onerror = function() { this.onerror = null; this.src = fallbackAvatarUrl; };
         }
         if (document.getElementById("headerAvatar")) {
             document.getElementById("headerAvatar").src = avatarUrl;
-            document.getElementById("headerAvatar").onerror = function() { this.onerror = null; this.src = `${API_BASE}/${defaultAvatar}`; };
+            document.getElementById("headerAvatar").onerror = function() { this.onerror = null; this.src = fallbackAvatarUrl; };
         }
         localStorage.setItem('saved_avatar_url', avatarUrl);
     }
@@ -276,8 +286,9 @@ async function fetchProfile() {
 function restoreSavedAvatar() {
     const avatarUrl = localStorage.getItem('saved_avatar_url');
     if (!avatarUrl) return;
-    if (document.getElementById("userAvatar")) document.getElementById("userAvatar").src = avatarUrl;
-    if (document.getElementById("headerAvatar")) document.getElementById("headerAvatar").src = avatarUrl;
+    const normalized = assetUrl(avatarUrl);
+    if (document.getElementById("userAvatar")) document.getElementById("userAvatar").src = normalized;
+    if (document.getElementById("headerAvatar")) document.getElementById("headerAvatar").src = normalized;
 }
 
 window.addEventListener('DOMContentLoaded', () => {
