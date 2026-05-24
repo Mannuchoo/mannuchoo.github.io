@@ -1,11 +1,9 @@
+server/
 node_modules/
-.env
-.env.local
 *.log
-backups/
-.DS_Store
-*.swp
-*.swo
-.vscode/
+public/Copilot/
+public/modules/
+public/uploads/
+
 ngrok.exe
 .ngrok.exe.old

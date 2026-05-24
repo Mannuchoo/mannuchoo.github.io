@@ -833,16 +833,8 @@ function renderRelatedMatchNews(news = []) {
 async function fetchMatchDetails(fixtureId) {
     try {
         const cleanId = fixtureId.replace('fb_', '');
-        const response = await fetch(window.apiUrl ? window.apiUrl(`/api/football/details/${cleanId}`) : `/api/football/details/${cleanId}`, {
-            headers: {
-                'ngrok-skip-browser-warning': 'true',
-                'Bypass-Tunnel-Reminder': 'true'
-            }
-        });
-        
-        if (!response.ok) throw new Error('API request failed');
-        
-        return await response.json();
+        // Use centralized apiFetch for headers and auth
+        return await apiFetch(`football/details/${cleanId}`);
     } catch (e) {
         console.error("❌ Frontend Fetch Error:", e);
         return null;

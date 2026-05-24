@@ -1,5 +1,5 @@
 const isGitHubPages = window.location.hostname.includes('github.io');
-const DEFAULT_GITHUB_PAGES_API_BASE = "https://uncorrelative-unportly-catalina.ngrok-free.dev";
+const DEFAULT_GITHUB_PAGES_API_BASE = "https://polysoko.online";
 
 function getSavedBackendUrl() {
     return localStorage.getItem("backend_url_override") || "";
@@ -165,11 +165,11 @@ async function apiFetch(endpoint, options = {}) {
     if (res.status === 401) {
         // Only logout if the core session-based routes fail 401
         const criticalRoutes = ['profile', 'user/history', 'my-bets'];
-        if (criticalRoutes.some(r => endpoint.includes(r))) {
+        if (criticalRoutes.some(r => endpoint.toLowerCase().includes(r))) {
             localStorage.removeItem("token");
             window.location.href = "login.html";
         }
-        return null;
+        throw new Error("Unauthorized access or session expired.");
     }
 
     const contentType = res.headers.get("content-type");
@@ -732,3 +732,5 @@ window.API = {
     deleteNotification,
     markNotificationsRead
 };
+window.API.apiFetch = apiFetch;
+window.apiFetch = apiFetch;

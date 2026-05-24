@@ -31,6 +31,15 @@
     <title>PolySoko | Admin Panel</title>
 </head>
 <style>
+/* ================= PARTICLE BACKGROUND ================= */
+#glitterCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: -1;
+    pointer-events: none;
+}
+
 /* ================= GLITTER & ANIMATION ================= */
 @keyframes shimmer {
     0% { background-position: -200% 0; }
@@ -40,9 +49,19 @@
 .glitter-text {
     background: linear-gradient(90deg, #fff, #00ff88, #fbe122, #fff);
     background-size: 200% auto;
+    background: linear-gradient(90deg, #fff, #00ff88, #fbe122, #00d1ff, #fff);
+    background-size: 400% auto;
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: shimmer 3s linear infinite;
+    font-weight: 900;
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+}
+
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 10px rgba(218, 2, 14, 0.2); }
+    50% { box-shadow: 0 0 25px rgba(218, 2, 14, 0.5); }
+    100% { box-shadow: 0 0 10px rgba(218, 2, 14, 0.2); }
 }
 
   /* ================= ROOT (HOME KIT 🔴) ================= */
@@ -63,11 +82,11 @@
     --accent: var(--mu-red);
     --accent-soft: rgba(218, 2, 14, 0.15);
 
-    --text: #f5f5f5;
+    --text: #ffffff;
     --text-dim: #999;
 
     --yes: #00c853;
-    --no: #ff1744;
+    --no: #ff4d4d;
 }
 
 /* ================= ⚪ AWAY KIT ================= */
@@ -144,17 +163,18 @@ body {
 /* ================= MENU BUTTON ================= */
 .menu-trigger {
     position: fixed;
-    top: 20px;
+    top: 25px;
     left: 20px;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     gap: 4px;
-    background: var(--mu-dark-grey);
-    border: 1px solid var(--mu-red);
+    background: rgba(26, 26, 26, 0.8);
+    border: 1px solid rgba(218, 2, 14, 0.4);
+    backdrop-filter: blur(10px);
     border-radius: 50%;
     cursor: pointer;
     z-index: 6000;
@@ -166,32 +186,6 @@ body {
     background: var(--mu-red);
 }
 
-.profile-trigger {
-    position: fixed;
-    top: 20px;
-    left: 80px;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--mu-dark-grey);
-    border: 1px solid var(--mu-red);
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 6000;
-    transition: 0.3s;
-}
-
-.profile-trigger:hover {
-    transform: scale(1.05);
-    background: var(--mu-red);
-}
-
-.profile-trigger span {
-    font-size: 1.2rem;
-}
-
 .menu-trigger span {
     width: 4px;
     height: 4px;
@@ -200,7 +194,7 @@ body {
 }
 
 .admin-main {
-    margin-top: 20px;
+    margin-top: 10px;
     padding: 20px 40px;
     max-width: 1200px;
     margin-left: auto;
@@ -332,61 +326,71 @@ button {
     color: #ff9494;
 }
 
-.admin-profile-card {
+/* ================= INTEGRATED PROFILE & BALANCE ================= */
+.sexy-profile-header {
     display: flex;
-    gap: 18px;
-    align-items: center;
-    margin-bottom: 20px;
-    background: var(--card);
-    padding: 22px;
-    border-radius: 24px;
-    border: 1px solid rgba(255,255,255,0.08);
-}
-
-.admin-profile-card .avatar-wrapper {
-    width: 96px;
-    height: 96px;
-    border-radius: 50%;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid var(--mu-red);
-    background: linear-gradient(135deg, #111, #1d1d1d);
-}
-
-.admin-profile-card .avatar-wrapper img {
+    justify-content: flex-end; /* Align to Top Right */
+    margin-bottom: 40px;
     width: 100%;
-    height: 100%;
-    object-fit: cover;
 }
 
-.admin-profile-details {
-    flex: 1;
-    min-width: 0;
-}
-
-.admin-profile-details h2 {
-    margin: 0;
-    font-size: 1.25rem;
-    color: white;
-}
-
-.admin-profile-details .profile-meta {
-    color: var(--text-dim);
-    font-size: 0.9rem;
-    margin-top: 5px;
-}
-
-.admin-profile-details .admin-actions {
+.sexy-profile-card {
+    background: linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(10, 10, 10, 0.95) 100%);
+    border: 1px solid rgba(218, 2, 14, 0.3);
+    background: linear-gradient(135deg, rgba(40, 40, 40, 0.9) 0%, rgba(5, 5, 5, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: 2px solid var(--mu-red);
+    border-radius: 20px;
+    padding: 15px 25px;
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.5), 0 0 20px rgba(218, 2, 14, 0.1);
+    box-shadow: 0 20px 45px rgba(0,0,0,0.6);
+    backdrop-filter: blur(15px);
+    position: relative;
+    overflow: hidden;
+    animation: pulse-glow 3s infinite;
 }
 
-.admin-profile-details .admin-actions .btn-primary {
-    padding: 10px 14px;
+.sexy-profile-card::after {
+    content: "";
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.03), transparent);
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+
+.sexy-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 15px;
+    border-radius: 50%;
+    border: 2px solid var(--mu-red);
+    object-fit: cover;
+    background: #222;
+}
+
+.sexy-balance-area {
+    text-align: right;
+}
+
+.sexy-balance-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--mu-red);
+    font-weight: 900;
+    margin-bottom: 2px;
+}
+
+.sexy-balance-value {
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: white;
+    margin: 0;
 }
 
 /* ================= SECTIONS ================= */
@@ -406,9 +410,10 @@ button {
 
 /* ================= CARDS ================= */
 .stat-card {
-    background: linear-gradient(145deg, var(--card), #0d0d0d);
+    background: rgba(18, 18, 18, 0.6);
+    backdrop-filter: blur(10px);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 24px;
     padding: 20px;
     position: relative;
     overflow: hidden;
@@ -481,48 +486,34 @@ tr[onclick] {
     pointer-events: auto !important;
 }
 
-/* ================= TREASURY ================= */
-.treasury-card {
-    background: #000;
-    border: 1px solid var(--mu-red);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
 /* ================= BUTTONS ================= */
 .btn-primary {
-    background: linear-gradient(135deg, var(--mu-red), var(--mu-dark-red));
-    color: white;
+    background: linear-gradient(135deg, #00ff88, #00c853);
+    color: black;
     border: none;
     padding: 12px 18px;
-    border-radius: 10px;
-    font-weight: bold;
+    border-radius: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-wire {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
     cursor: pointer;
     transition: 0.2s;
 }
 
-.btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(218, 2, 14, 0.4);
-}
-
-.treasury-card {
-    background: linear-gradient(135deg, #1a1a1a, #0a0a0a); /* Darker gradient */
-    border: 1px solid var(--mu-red);
-    border-radius: 18px; /* Slightly more rounded */
-    padding: 25px; /* More padding */
-    margin-bottom: 30px; /* More space below */
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(218, 2, 14, 0.2); /* Floating effect */
-    transition: all 0.3s ease; /* Smooth transitions */
-}
-
-.treasury-card:hover {
-    transform: translateY(-5px); /* Lift effect on hover */
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(218, 2, 14, 0.4);
+.btn-wire:hover {
+    background: var(--mu-red);
+    border-color: var(--mu-red);
 }
 
 .btn-approve {
@@ -634,23 +625,22 @@ button, input, select {
 
 /* ================= ADMIN EXTRAS ================= */
 .admin-actions-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 15px;
-    margin-top: 25px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
 }
 
 .admin-actions-grid button {
-    background: var(--mu-dark-grey);
-    border: 1px solid var(--border);
-    padding: 20px 10px;
-    border-radius: 16px;
-    color: white;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    transition: 0.2s;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 10px 15px;
+    border-radius: 12px;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
 }
 
 .admin-actions-grid button:hover {
@@ -659,13 +649,39 @@ button, input, select {
     background: rgba(255,255,255,0.02);
 }
 
-.admin-actions-grid button span {
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-dim);
+/* ================= ELITE USER DASHBOARD ================= */
+.elite-dashboard {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 50px;
+    flex-wrap: wrap;
 }
+
+.elite-portal-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    width: 220px;
+    height: 220px;
+    border-radius: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    backdrop-filter: blur(10px);
+}
+
+.elite-portal-btn:hover {
+    transform: translateY(-15px) scale(1.05);
+    border-color: #00ff88;
+    box-shadow: 0 20px 40px rgba(0, 255, 136, 0.15), 0 0 20px rgba(0, 255, 136, 0.1);
+    background: rgba(0, 255, 136, 0.05);
+}
+
+.elite-portal-btn .icon { font-size: 5rem; margin-bottom: 10px; }
+.elite-portal-btn .label { font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #00ff88; font-size: 0.9rem; }
 
 .pill {
     padding: 8px 16px;
@@ -676,17 +692,6 @@ button, input, select {
     font-size: 0.8rem;
     cursor: pointer;
     transition: 0.2s;
-}
-
-.treasury-card h1 {
-    font-size: 3rem !important; /* Make balance bigger */
-    color: #00ff88 !important; /* Keep green for profit */
-    text-shadow: 0 0 10px rgba(0, 255, 136, 0.3); /* Subtle glow */
-}
-
-.treasury-card p {
-    font-size: 1rem !important; /* Make total user balances more readable */
-    color: var(--text-dim) !important;
 }
 
 .pill.active {
@@ -766,6 +771,9 @@ button, input, select {
 }
     </style>
 
+<!-- PARTICLE CANVAS -->
+<canvas id="glitterCanvas"></canvas>
+
 <!-- MENU TRIGGER -->
 <div class="menu-trigger" id="adminMenuBtn" onclick="toggleAdminSidebar()">
     <span></span>
@@ -814,11 +822,21 @@ button, input, select {
 
 
 
-<!-- ✅ FIX: EVERYTHING INSIDE admin-main -->
-
 <div class="admin-main">
-
-
+    <!-- 👑 SEXY INTEGRATED HEADER -->
+    <div class="sexy-profile-header">
+        <div class="sexy-profile-card">
+            <div class="sexy-balance-area" onclick="openSuperAdminInfo()" style="cursor:pointer;">
+                <div class="sexy-balance-label glitter-text">Profit Reserve</div>
+                <h1 id="adminTreasuryBal" class="sexy-balance-value">sKES 0.00</h1>
+                <div style="display:flex; gap:5px; margin-top:8px; justify-content:flex-end;">
+                    <button class="btn-wire" onclick="openWireModal('metamask')">Wire Crypto</button>
+                    <button class="btn-wire" onclick="openWireModal('till')">Wire Till</button>
+                </div>
+            </div>
+            <img id="superAdminAvatar" class="sexy-avatar" src="/uploads/avatars/default.png" alt="Admin" onclick="showSection('adminAccountSection')">
+        </div>
+    </div>
 
     <!-- 🚀 CREATE SECTION -->
 
@@ -1206,70 +1224,64 @@ button, input, select {
         </div>
     </div>
 
-<!-- 👑 MY ACCOUNT CENTER -->
 <div id="adminAccountSection" class="admin-section active">
     <div class="stat-card">
-        <div style="text-align:center; margin-bottom:30px;">
-            <div style="font-size:3rem; margin-bottom:10px;">👑</div>
-            <h2 style="margin:0; letter-spacing:1px; text-transform:uppercase;">Admin Control</h2>
+        <div id="superAdminHeader">
+            <h2 class="glitter-text" style="font-size:1.8rem; margin-bottom:5px;">Admin Console</h2>
+            <p id="platformBalanceTotal" style="color:var(--text-dim); margin-bottom:25px;">Total user balances: sKES 0.00</p>
         </div>
 
-        <div id="superAdminProfile" class="admin-profile-card">
-            <div class="avatar-wrapper">
-                <img id="superAdminAvatar" src="/uploads/avatars/default.png" alt="Admin avatar" onerror="this.onerror=null; this.src='/uploads/avatars/default.png';">
-            </div>
-            <div class="admin-profile-details">
-                <h2 id="superName">SuperAdmin</h2>
-                <div id="superPhone" class="profile-meta">+2547XXXXXXXX</div>
-                <div id="superEmail" class="profile-meta" style="margin-top:8px;">superadmin@polysoko.com</div>
-            </div>
-        </div>
-
-        <div class="treasury-card">
-            <div>
-                <small style="color:gray; display:block; text-transform:uppercase; font-size:0.6rem;">Profit Reserve</small>
-                <h1 id="adminTreasuryBal" style="margin:5px 0;">sKES 0.00</h1>
-                <p id="platformBalanceTotal" style="margin:0; color:var(--text-dim); font-size:0.9rem;">Total user balances: sKES 0.00</p>
-            </div>
-        </div>
-
-        <div class="admin-actions-grid">
+        <!-- 👑 SUPERADMIN CONTROL GRID -->
+        <div id="superAdminControls" class="admin-actions-grid">
             <button onclick="showSection('createSection')">
-                <div style="font-size:1.8rem;">🚀</div>
-                <span>Launch Market</span>
+                🚀 Launch Market
             </button>
             <button onclick="showSection('marketsSection'); loadAdminMarkets();">
-                <div style="font-size:1.8rem;">🛠️</div>
-                <span>Manage Markets</span>
+                🛠️ Manage Markets
             </button>
             <button onclick="showSection('betsSection'); loadGlobalActiveBets();">
-                <div style="font-size:1.8rem;">📈</div>
-                <span>All Bets History</span>
+                📈 All Bets History
             </button>
             <button onclick="showSection('usersSection'); loadAdminUsers();">
-                <div style="font-size:1.8rem;">👥</div>
-                <span>User Directory</span>
+                👥 User Directory
             </button>
             <button onclick="showSection('transactionsSection'); setTransactionFilter('withdraw');">
-                <div style="font-size:1.8rem;">💰</div>
-                <span>Transactions</span>
+                💰 Transactions
             </button>
             <button onclick="showSection('marketApprovalsSection'); loadPendingMarkets();">
-                <div style="font-size:1.8rem;">⭐</div>
-                <span>Approvals</span>
-            </button>
-            <button onclick="openWireModal('metamask')">
-                <div style="font-size:1.8rem;">🦊</div>
-                <span>Wire Crypto</span>
-            </button>
-            <button onclick="openWireModal('till')">
-                <div style="font-size:1.8rem;">📲</div>
-                <span>Wire Till</span>
+                ⭐ Approvals
             </button>
             <button onclick="location.reload()">
-                <div style="font-size:1.8rem;">🔄</div>
-                <span>Resync</span>
+                🔄 Resync
             </button>
+        </div>
+
+        <!-- 💎 ELITE USER PORTAL -->
+        <div id="elitePortal" style="display:none; text-align:center;">
+            <h2 class="glitter-text" style="font-size:2.2rem; margin-bottom:10px;">Elite Management</h2>
+            <p style="color:var(--text-dim); margin-bottom:40px;">Select a terminal to begin</p>
+            
+            <div class="elite-dashboard">
+                <div class="elite-portal-btn" onclick="toggleEliteBoosts()">
+                    <div class="icon">⚡</div>
+                    <div class="label">Boost Portal</div>
+                </div>
+                <div class="elite-portal-btn" onclick="showSection('createSection')">
+                    <div class="icon">🚀</div>
+                    <div class="label">Launch Market</div>
+                </div>
+            </div>
+
+            <!-- Expandable Clickable Boosted Odds -->
+            <div id="eliteBoostsList" style="display:none; margin-top:50px; text-align:left; animation: fadeIn 0.4s ease;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #333; padding-bottom:10px;">
+                    <h3 class="glitter-text" style="margin:0;">Available Boosted Odds</h3>
+                    <button class="btn-wire" onclick="toggleEliteBoosts()">Close Portal</button>
+                </div>
+                <div id="boostedMarketsContent" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:15px;">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -1360,56 +1372,89 @@ button, input, select {
 </div>
 
 <script>
-const socket = io(ADMIN_API_BASE, { auth: { token: localStorage.getItem("token") } });
+/* ================= PARTICLE SYSTEM ================= */
+const canvas = document.getElementById('glitterCanvas');
+const ctx = canvas.getContext('2d');
+let particlesArray;
+let mouse = { x: null, y: null, radius: 120 };
 
-socket.on('connect', () => {
-    console.log("✅ Admin Socket Connected");
-    socket.emit('adminJoin');
-});
+window.addEventListener('mousemove', (e) => { mouse.x = e.x; mouse.y = e.y; });
+window.addEventListener('mouseout', () => { mouse.x = null; mouse.y = null; });
 
-socket.on('newMarketPending', (data) => {
-    console.log("🆕 New market submission received:", data.title);
-    if (document.getElementById('marketApprovalsSection').classList.contains('active')) {
-        loadPendingMarkets();
+class Particle {
+    constructor(x, y, dx, dy, size, color) {
+        this.x = x; this.y = y; this.dx = dx; this.dy = dy; this.size = size;
+        this.color = color; this.opacity = Math.random();
+        this.flickerSpeed = 0.005 + Math.random() * 0.015;
     }
-});
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = this.opacity;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = this.color;
+        ctx.fill();
+        ctx.restore();
+    }
+    update() {
+        if (this.x > canvas.width || this.x < 0) this.dx = -this.dx;
+        if (this.y > canvas.height || this.y < 0) this.dy = -this.dy;
 
-const API = {
-    async request(path, method = 'GET', body = null) {
-        try {
-            const res = await fetch(adminApiUrl('/api' + path), {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Bypass-Tunnel-Reminder': 'true',
-                    'ngrok-skip-browser-warning': 'true',
-                    Authorization: `Bearer ${localStorage.getItem("token")}`
-                },
-                body: body ? JSON.stringify(body) : null
-            });
-
-            const contentType = res.headers.get("content-type");
-            if (!contentType || !contentType.includes("application/json")) {
-                const text = await res.text();
-                console.error("❌ Expected JSON but got:", text.slice(0, 100));
-                const msg = "Tunnel Blocked! Please refresh the page and click 'Visit Site' on the reminder page if it appears.";
-                if (/Android|iPhone/i.test(navigator.userAgent)) {
-                    console.warn(msg);
-                }
-                throw new Error(msg);
-            }
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || "Request failed");
-            return data;
-        } catch (err) {
-            console.error(`API ERROR [${method} ${path}]`, err);
-            throw err;
+        // Mouse Interaction: Subtle repulsion
+        let dx = mouse.x - this.x;
+        let dy = mouse.y - this.y;
+        let distance = Math.sqrt(dx*dx + dy*dy);
+        if (distance < mouse.radius && mouse.x !== null) {
+            const force = (mouse.radius - distance) / mouse.radius;
+            this.x -= dx * force * 0.05;
+            this.y -= dy * force * 0.05;
         }
-    },
-    get(path) { return this.request(path, 'GET'); },
-    post(path, body) { return this.request(path, 'POST', body); }
-};
+
+        this.x += this.dx;
+        this.y += this.dy;
+
+        // Glitter flicker effect
+        this.opacity += this.flickerSpeed;
+        if (this.opacity > 0.8 || this.opacity < 0.1) this.flickerSpeed = -this.flickerSpeed;
+        
+        this.draw();
+    }
+}
+
+function initParticles() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    particlesArray = [];
+    let count = (canvas.width * canvas.height) / 10000;
+    for (let i = 0; i < count; i++) {
+        let size = Math.random() * 1.8 + 0.5;
+        let x = Math.random() * canvas.width;
+        let y = Math.random() * canvas.height;
+        let dx = (Math.random() - 0.5) * 0.4;
+        let dy = (Math.random() - 0.5) * 0.4;
+        // Color palette: White, MU Gold, MU Red
+        const rand = Math.random();
+        let color = '#ffffff';
+        if (rand > 0.85) color = '#fbe122';
+        else if (rand > 0.75) color = '#da020e';
+        
+        particlesArray.push(new Particle(x, y, dx, dy, size, color));
+    }
+}
+
+function animateParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particlesArray.forEach(p => p.update());
+    requestAnimationFrame(animateParticles);
+}
+
+window.addEventListener('resize', initParticles);
+initParticles();
+animateParticles();
+
+const socket = io(window.API_BASE, { auth: { token: localStorage.getItem("token") } });
 
 window.filterAdminList = function(containerId, query) {
     const cards = document.querySelectorAll(`#${containerId} > div`);
@@ -1470,20 +1515,59 @@ function setTheme(type) {
 
 async function loadAdminTreasury() {
     try {
+        const sanitize = (text) => String(text || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        const cachedUser = JSON.parse(localStorage.getItem("user_data") || "{}");
         const res = await API.get('/admin/stats');
         if(res.success) {
             document.getElementById('adminTreasuryBal').innerText = `sKES ${Number(res.profit || 0).toFixed(2)}`;
-            document.getElementById('platformBalanceTotal').innerText = `Total user balances: sKES ${Number(res.platformTotal || 0).toFixed(2)}`;
+
+            if (res.isSuperAdmin || cachedUser.role === 'admin') {
+                document.getElementById('superAdminHeader').style.display = 'block';
+                document.getElementById('superAdminControls').style.display = 'flex';
+                document.getElementById('elitePortal').style.display = 'none';
+                document.getElementById('platformBalanceTotal').innerText = `Total user balances: sKES ${Number(res.platformTotal || 0).toFixed(2)}`;
+            } else {
+                // 💎 Elite User View
+                document.getElementById('superAdminHeader').style.display = 'none';
+                document.getElementById('superAdminControls').style.display = 'none';
+                document.getElementById('elitePortal').style.display = 'block';
+
+                const sanitize = (text) => String(text || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+                const boostedContainer = document.getElementById('boostedMarketsContent');
+                if (res.boostedMarkets && res.boostedMarkets.length > 0) {
+                    boostedContainer.innerHTML = res.boostedMarkets.map(m => `
+                        <div style="background:rgba(0,255,136,0.03); border:1px solid rgba(0,255,136,0.2); padding:20px; border-radius:20px; cursor:pointer;" onclick="window.location.href='/?id=${m.id}'">
+                            <div style="color:gray; font-size:0.65rem; text-transform:uppercase; margin-bottom:8px;">${sanitize(m.category)} • LIVE</div>
+                            <div style="color:white; font-weight:700; font-size:0.95rem; margin-bottom:15px; line-height:1.3;">${sanitize(m.title)}</div>
+                            <div style="display:flex; gap:10px;">
+                                <div style="flex:1; background:rgba(0,255,136,0.1); padding:10px; border-radius:12px; text-align:center;">
+                                    <span style="color:#00ff88; font-size:0.7rem; display:block;">YES</span>
+                                    <b style="color:white;">${Number(m.oddsA || 1.9).toFixed(2)}</b>
+                                </div>
+                                <div style="flex:1; background:rgba(255,77,77,0.1); padding:10px; border-radius:12px; text-align:center;">
+                                    <span style="color:#ff4d4d; font-size:0.7rem; display:block;">NO</span>
+                                    <b style="color:white;">${Number(m.oddsB || 1.9).toFixed(2)}</b>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    boostedContainer.innerHTML = '<div style="color:gray; padding:20px;">No boosted markets active at the moment.</div>';
+                }
+            }
         }
     } catch(e) { console.error(e); }
 }
 
 window.openSuperAdminInfo = async function() {
     try {
+        if (!window.superAdminData) {
+            throw new Error("Admin profile not loaded");
+        }
         const stats = await API.get('/admin/stats');
-        document.getElementById('infoName').innerText = document.getElementById('superName').innerText;
-        document.getElementById('infoPhone').innerText = document.getElementById('superPhone').innerText;
-        document.getElementById('infoEmail').innerText = document.getElementById('superEmail').innerText;
+        document.getElementById('infoName').innerText = window.superAdminData.name || 'SuperAdmin';
+        document.getElementById('infoPhone').innerText = window.superAdminData.phone || '';
+        document.getElementById('infoEmail').innerText = window.superAdminData.email || 'No email set';
         document.getElementById('infoTotalBalance').innerText = document.getElementById('platformBalanceTotal')?.innerText || 'sKES 0.00';
         document.getElementById('infoWallet').innerText = stats.adminWallet || 'Not set';
         document.getElementById('infoTill').innerText = stats.adminTill || 'Not set';
@@ -1538,10 +1622,19 @@ window.openWireModal = async function(type) {
     };
 };
 
+window.toggleEliteBoosts = function() {
+    const list = document.getElementById('eliteBoostsList');
+    const isHidden = list.style.display === 'none';
+    list.style.display = isHidden ? 'block' : 'none';
+};
+
 /* ================= INIT ================= */
 window.onload = () => {
     if (!localStorage.getItem("token")) return adminLogout();
     
+    // Immediate Avatar/Role Restore (Fixes slow loading)
+    restoreAdminProfilePreview();
+
     // Sync the transaction filter pill UI on load
     document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
     document.getElementById('txFilterWithdraw')?.classList.add('active');
@@ -2130,33 +2223,230 @@ window.adminLogout = function() {
     location.href = "/login.html?redirect=admin.html";
 };
 
+function restoreAdminProfilePreview() {
+    const u = JSON.parse(localStorage.getItem("user_data") || "{}");
+    if (u.avatar_url || u.avatar) {
+        const img = document.getElementById('superAdminAvatar');
+        const url = adminAssetUrl(u.avatar_url || u.avatar);
+        if (img) img.src = url;
+    }
+    
+    // Instant Portal Switch based on cache
+    if (u.role !== 'admin' && Number(u.is_upgraded) === 1) {
+        document.getElementById('superAdminHeader').style.display = 'none';
+        document.getElementById('superAdminControls').style.display = 'none';
+        document.getElementById('elitePortal').style.display = 'block';
+    }
+};
+
 /* ================= AUTO REFRESH ================= */
 setInterval(loadTransactions, 30000);
 
 // SuperAdmin profile populate & edit
 (async function(){
-    try {
-        const profileRes = await fetch(adminApiUrl('/api/profile'), {
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`,
-                'Bypass-Tunnel-Reminder': 'true',
-                'ngrok-skip-browser-warning': 'true'
-            }
-        });
-        const data = await profileRes.json();
-        if (data && data.user) {
-            const u = data.user;
-            const avatarUrl = adminAssetUrl(u.avatar_url || u.avatar);
-            document.getElementById('superName').innerText = u.name || 'SuperAdmin';
-            document.getElementById('superPhone').innerText = u.phone || '';
-            document.getElementById('superEmail').innerText = u.email || 'No email set';
-            const avatarImg = document.getElementById('superAdminAvatar');
-            if (avatarImg) {
-                avatarImg.src = avatarUrl;
-                avatarImg.onerror = function() { this.onerror = null; this.src = adminAssetUrl('/uploads/avatars/default.png'); };
-            }
+    restoreAdminProfilePreview();
+    // Use centralized fetcher for consistent behavior
+    const data = await API.get('/profile').catch(e => console.warn('Admin profile load failed', e));
+    if (data && data.success && data.user) {
+        const u = data.user;
+        window.superAdminData = u;
+        const avatarUrl = assetUrl(u.avatar_url || u.avatar);
+        const avatarImg = document.getElementById('superAdminAvatar');
+        if (avatarImg) {
+            avatarImg.src = avatarUrl;
+            avatarImg.onerror = function() { 
+                this.onerror = null; 
+                this.src = assetUrl('/uploads/avatars/default.png'); 
+            };
         }
-    } catch(e) { console.warn('Could not load superadmin profile', e); }
+    }
+})();
+</script>
+</body>
+</html>
+    } catch (err) {
+        alert("Settlement failed: " + err.message);
+        btn.innerText = "Settle";
+        btn.disabled = false;
+    }
+}
+
+/* ================= BETS ================= */
+async function loadGlobalActiveBets() {
+    const table = document.getElementById('globalBetsTable');
+    table.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+
+    try {
+        const res = await API.get('/admin/all-active-bets');
+        const bets = res.bets || [];
+
+        table.innerHTML = bets.length
+            ? bets.map(b => `
+                <tr>
+                    <td>#${b.id}</td>
+                    <td>${b.userName}</td>
+                    <td>${b.marketTitle}</td>
+                    <td>${b.amount} sKES</td>
+                    <td>${b.side}</td>
+                    <td>${b.status}</td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="6">No bets</td></tr>';
+
+    } catch {
+        table.innerHTML = '<tr><td colspan="6">Error</td></tr>';
+    }
+}
+
+/* ================= UI ================= */
+// Namespaced admin sidebar toggle to avoid colliding with main site toggleSidebar
+
+function clearMarketForm() {
+    document.getElementById('mTitle').value = '';
+    document.getElementById('mCategory').value = 'football';
+    document.getElementById('mExpiry').value = '';
+    document.getElementById('mDescription').value = '';
+    document.getElementById('mSideA').value = 'YES';
+    document.getElementById('mSideB').value = 'NO';
+}
+
+/* ================= AUTH ================= */
+window.adminLogout = function() {
+    localStorage.clear();
+    location.href = "/login.html?redirect=admin.html";
+};
+
+function restoreAdminProfilePreview() {
+    const u = JSON.parse(localStorage.getItem("user_data") || "{}");
+    if (u.avatar_url || u.avatar) {
+        const img = document.getElementById('superAdminAvatar');
+        const url = adminAssetUrl(u.avatar_url || u.avatar);
+        if (img) img.src = url;
+    }
+    
+    // Instant Portal Switch based on cache
+    if (u.role !== 'admin' && Number(u.is_upgraded) === 1) {
+        document.getElementById('superAdminHeader').style.display = 'none';
+        document.getElementById('superAdminControls').style.display = 'none';
+        document.getElementById('elitePortal').style.display = 'block';
+    }
+};
+
+/* ================= AUTO REFRESH ================= */
+setInterval(loadTransactions, 30000);
+
+// SuperAdmin profile populate & edit
+(async function(){
+    restoreAdminProfilePreview();
+    // Use centralized fetcher for consistent behavior
+    const data = await API.get('/profile').catch(e => console.warn('Admin profile load failed', e));
+    if (data && data.success && data.user) {
+        const u = data.user;
+        window.superAdminData = u;
+        const avatarUrl = assetUrl(u.avatar_url || u.avatar);
+        const avatarImg = document.getElementById('superAdminAvatar');
+        if (avatarImg) {
+            avatarImg.src = avatarUrl;
+            avatarImg.onerror = function() { 
+                this.onerror = null; 
+                this.src = assetUrl('/uploads/avatars/default.png'); 
+            };
+        }
+    }
+})();
+
+</script>
+</body>
+</html>
+    } catch (err) {
+        alert("Settlement failed: " + err.message);
+        btn.innerText = "Settle";
+        btn.disabled = false;
+    }
+}
+
+/* ================= BETS ================= */
+async function loadGlobalActiveBets() {
+    const table = document.getElementById('globalBetsTable');
+    table.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+
+    try {
+        const res = await API.get('/admin/all-active-bets');
+        const bets = res.bets || [];
+
+        table.innerHTML = bets.length
+            ? bets.map(b => `
+                <tr>
+                    <td>#${b.id}</td>
+                    <td>${b.userName}</td>
+                    <td>${b.marketTitle}</td>
+                    <td>${b.amount} sKES</td>
+                    <td>${b.side}</td>
+                    <td>${b.status}</td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="6">No bets</td></tr>';
+
+    } catch {
+        table.innerHTML = '<tr><td colspan="6">Error</td></tr>';
+    }
+}
+
+/* ================= UI ================= */
+// Namespaced admin sidebar toggle to avoid colliding with main site toggleSidebar
+
+function clearMarketForm() {
+    document.getElementById('mTitle').value = '';
+    document.getElementById('mCategory').value = 'football';
+    document.getElementById('mExpiry').value = '';
+    document.getElementById('mDescription').value = '';
+    document.getElementById('mSideA').value = 'YES';
+    document.getElementById('mSideB').value = 'NO';
+}
+
+/* ================= AUTH ================= */
+window.adminLogout = function() {
+    localStorage.clear();
+    location.href = "/login.html?redirect=admin.html";
+};
+
+function restoreAdminProfilePreview() {
+    const u = JSON.parse(localStorage.getItem("user_data") || "{}");
+    if (u.avatar_url || u.avatar) {
+        const img = document.getElementById('superAdminAvatar');
+        const url = adminAssetUrl(u.avatar_url || u.avatar);
+        if (img) img.src = url;
+    }
+    
+    // Instant Portal Switch based on cache
+    if (u.role !== 'admin' && Number(u.is_upgraded) === 1) {
+        document.getElementById('superAdminHeader').style.display = 'none';
+        document.getElementById('superAdminControls').style.display = 'none';
+        document.getElementById('elitePortal').style.display = 'block';
+    }
+};
+
+/* ================= AUTO REFRESH ================= */
+setInterval(loadTransactions, 30000);
+
+// SuperAdmin profile populate & edit
+(async function(){
+    restoreAdminProfilePreview();
+    // Use centralized fetcher for consistent behavior
+    const data = await API.get('/profile').catch(e => console.warn('Admin profile load failed', e));
+    if (data && data.success && data.user) {
+        const u = data.user;
+        window.superAdminData = u;
+        const avatarUrl = assetUrl(u.avatar_url || u.avatar);
+        const avatarImg = document.getElementById('superAdminAvatar');
+        if (avatarImg) {
+            avatarImg.src = avatarUrl;
+            avatarImg.onerror = function() { 
+                this.onerror = null; 
+                this.src = assetUrl('/uploads/avatars/default.png'); 
+            };
+        }
+    }
 })();
 
 </script>
