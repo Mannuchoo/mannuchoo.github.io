@@ -7,14 +7,61 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
         script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io; 
         style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; 
-        connect-src 'self' https://ipapi.co https://*.ipapi.co https://polysoko.com https://api.weatherapi.com https://nominatim.openstreetmap.org https://*.loca.lt https://*.ngrok-free.app https://*.ngrok-free.dev ws: wss:; 
+        connect-src 'self' https://ipapi.co https://*.ipapi.co https://polysoko.com https://polysoko.online https://api.weatherapi.com https://nominatim.openstreetmap.org https://*.loca.lt https://*.ngrok-free.app https://*.ngrok-free.dev https://*.ngrok.io ws: wss:;
         img-src 'self' data: https:; 
         media-src 'self' data: blob: https:; 
         frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com;">
     <script>
-        const ADMIN_DEFAULT_API_BASE = "https://uncorrelative-unportly-catalina.ngrok-free.dev";
-        const ADMIN_API_BASE = window.location.hostname.includes('github.io')
-            ? (localStorage.getItem("backend_url_override") || ADMIN_DEFAULT_API_BASE)
+        const ADMIN_DEFAULT_API_BASE = "";
+        const ADMIN_LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1"];
+        const adminIsProduction = !ADMIN_LOCAL_HOSTS.includes(window.location.hostname);
+        function normalizeAdminBackend(rawUrl) {
+            if (!rawUrl) return "";
+            const trimmed = rawUrl.trim();
+            if (!trimmed) return "";
+            const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+            return withProtocol.replace(/\/+$/, "");
+        }
+        function getAdminBackendFromQuery() {
+            const params = new URLSearchParams(window.location.search);
+            const backend = normalizeAdminBackend(params.get("backend") || params.get("api"));
+            if (!backend) return "";
+            localStorage.setItem("backend_url_override", backend);
+            params.delete("backend");
+            params.delete("api");
+            const nextQuery = params.toString();
+            window.history.replaceState({}, "", `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`);
+            return backend;
+        }
+        function showAdminBackendSetupPrompt() {
+            if (!adminIsProduction || ADMIN_API_BASE || document.getElementById("adminBackendSetupPrompt")) return;
+            const banner = document.createElement("div");
+            banner.id = "adminBackendSetupPrompt";
+            banner.style = "position:fixed;top:16px;left:50%;transform:translateX(-50%);width:min(100%,540px);z-index:99999;background:#101820;border:1px solid #00ff88;border-radius:14px;padding:16px;color:white;box-shadow:0 18px 45px rgba(0,0,0,.45);font-family:Inter,Arial,sans-serif;";
+            banner.innerHTML = `
+                <strong style="color:#00ff88;">PolySoko backend required</strong>
+                <p style="margin:8px 0 12px;color:#cbd5e1;font-size:.92rem;">Paste your current ngrok URL to connect this domain to the laptop server.</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <input id="adminBackendUrlInput" placeholder="https://xxxxx.ngrok-free.app" value="${localStorage.getItem("backend_url_override") || ""}" style="flex:1;min-width:220px;padding:11px;border-radius:10px;border:1px solid #334155;background:#020617;color:white;">
+                    <button id="adminBackendSaveBtn" style="padding:11px 16px;border:0;border-radius:10px;background:#00ff88;color:#020617;font-weight:800;cursor:pointer;">Save</button>
+                </div>
+                <div id="adminBackendSetupMessage" style="margin-top:10px;color:#cbd5e1;font-size:.85rem;"></div>
+            `;
+            document.body.appendChild(banner);
+            document.getElementById("adminBackendSaveBtn").onclick = () => {
+                const resolved = normalizeAdminBackend(document.getElementById("adminBackendUrlInput").value);
+                const msg = document.getElementById("adminBackendSetupMessage");
+                if (!resolved) {
+                    msg.textContent = "Enter your ngrok backend URL first.";
+                    return;
+                }
+                localStorage.setItem("backend_url_override", resolved);
+                msg.textContent = "Saved. Reloading...";
+                setTimeout(() => location.reload(), 600);
+            };
+        }
+        const ADMIN_API_BASE = adminIsProduction
+            ? (getAdminBackendFromQuery() || normalizeAdminBackend(localStorage.getItem("backend_url_override")) || ADMIN_DEFAULT_API_BASE)
             : window.location.origin;
         function adminApiUrl(path) {
             if (/^https?:\/\//i.test(path)) return path;
@@ -26,7 +73,8 @@
             if (/^(data:|blob:|https?:\/\/)/i.test(value)) return value;
             return adminApiUrl(value);
         }
-        document.write(`<script src="${window.location.hostname.includes('github.io') ? 'https://cdn.socket.io/4.7.2/socket.io.min.js' : '/socket.io/socket.io.js'}"><\/script>`);
+        document.write(`<script src="${adminIsProduction ? 'https://cdn.socket.io/4.7.2/socket.io.min.js' : '/socket.io/socket.io.js'}"><\/script>`);
+        window.addEventListener("DOMContentLoaded", showAdminBackendSetupPrompt);
     </script>
     <title>PolySoko | Admin Panel</title>
 </head>
@@ -1346,7 +1394,9 @@ button, input, select {
 </div>
 
 <script>
-const socket = io(ADMIN_API_BASE, { auth: { token: localStorage.getItem("token") } });
+const socket = ADMIN_API_BASE && typeof io === "function"
+    ? io(ADMIN_API_BASE, { auth: { token: localStorage.getItem("token") } })
+    : { on() {}, emit() {} };
 
 socket.on('connect', () => {
     console.log("✅ Admin Socket Connected");
@@ -1362,6 +1412,10 @@ socket.on('newMarketPending', (data) => {
 
 const API = {
     async request(path, method = 'GET', body = null) {
+        if (adminIsProduction && !ADMIN_API_BASE) {
+            throw new Error("Backend URL is not configured. Open this page with ?backend=https://your-ngrok-url or set localStorage.backend_url_override.");
+        }
+
         try {
             const res = await fetch(adminApiUrl('/api' + path), {
                 method,
@@ -1497,7 +1551,7 @@ window.openWireModal = async function(type) {
     } else {
         icon.innerText = '📲';
         title.innerText = 'Wire to Business Till';
-        desc.innerText = 'Funds will be settled directly to Business Till 4440728 via M-Pesa B2C node.';
+        desc.innerText = 'Funds will be settled directly to Business Till 4447028 via M-Pesa B2C node.';
     }
     
     amountInput.value = '';

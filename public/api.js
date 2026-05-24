@@ -1,5 +1,20 @@
-const isGitHubPages = window.location.hostname.includes('github.io');
-const DEFAULT_GITHUB_PAGES_API_BASE = "https://uncorrelative-unportly-catalina.ngrok-free.dev";
+const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1"];
+const isLocalFrontend = LOCAL_HOSTS.includes(window.location.hostname);
+const isGitHubPages = !isLocalFrontend;
+const DEFAULT_GITHUB_PAGES_API_BASE = "";
+
+function applyBackendUrlFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const backend = resolveBackendUrl(params.get("backend") || params.get("api"));
+    if (!backend) return "";
+    localStorage.setItem("backend_url_override", backend);
+    params.delete("backend");
+    params.delete("api");
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextUrl);
+    return backend;
+}
 
 function getSavedBackendUrl() {
     return localStorage.getItem("backend_url_override") || "";
@@ -80,17 +95,20 @@ function showBackendSetupPrompt() {
 }
 
 function getApiBase() {
+    const queryBackend = applyBackendUrlFromQuery();
+    if (queryBackend) return queryBackend;
+
+    const saved = getSavedBackendUrl();
+    if (saved) return resolveBackendUrl(saved);
+
     if (isGitHubPages) {
-        const backend = resolveBackendUrl(getSavedBackendUrl()) || DEFAULT_GITHUB_PAGES_API_BASE;
-        if (!backend) {
-            if (document.readyState !== "loading") {
-                showBackendSetupPrompt();
-            } else {
-                window.addEventListener("DOMContentLoaded", showBackendSetupPrompt);
-            }
-            return "";
+        if (DEFAULT_GITHUB_PAGES_API_BASE) return DEFAULT_GITHUB_PAGES_API_BASE;
+        if (document.readyState !== "loading") {
+            showBackendSetupPrompt();
+        } else {
+            window.addEventListener("DOMContentLoaded", showBackendSetupPrompt);
         }
-        return backend;
+        return "";
     }
     return window.location.origin;
 }
@@ -121,17 +139,17 @@ function getToken() {
 
 async function apiFetch(endpoint, options = {}) {
     // Check if backend is configured when on GitHub Pages
-    if (isGitHubPages && !API_BASE) {
+    if (isGitHubPages && !window.API_BASE) {
         showBackendSetupPrompt();
         throw new Error("Backend not configured for GitHub Pages. Start the PolySoko backend or set localStorage.backend_url_override and reload.");
     }
 
     const token = localStorage.getItem("token");
     // Standardize pathing: ensure no double slashes and always starts with /api/
-    const cleanEndpoint = endpoint.replace(/^\/?(api\/)?/, '');
+    const cleanEndpoint = (endpoint || '').replace(/^\/?(api\/)?/, '');
     const path = `/api/${cleanEndpoint}`;
     
-    const url = `${API_BASE}${path}`;
+    const url = `${window.API_BASE}${path}`;
     const headers = {
         'Content-Type': 'application/json',
         'Bypass-Tunnel-Reminder': 'true',
@@ -165,21 +183,25 @@ async function apiFetch(endpoint, options = {}) {
     if (res.status === 401) {
         // Only logout if the core session-based routes fail 401
         const criticalRoutes = ['profile', 'user/history', 'my-bets'];
-        if (criticalRoutes.some(r => endpoint.includes(r))) {
+        if (criticalRoutes.some(r => (endpoint || '').toLowerCase().includes(r))) {
             localStorage.removeItem("token");
             window.location.href = "login.html";
         }
-        return null;
+        throw new Error("Unauthorized access or session expired.");
     }
 
-    const contentType = res.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-        const text = await res.text();
-        console.error("❌ Expected JSON but got:", text.slice(0, 100));
-        throw new Error("Server returned non-JSON response (Check Tunnel/Reminder page)");
+    const text = await res.text();
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        console.error("❌ Failed to parse JSON. Response body preview:", text.slice(0, 200));
+        if (text.toLowerCase().includes("<html")) {
+            throw new Error("Server returned HTML instead of JSON. Check your backend URL configuration.");
+        }
+        throw new Error("Server returned an invalid non-JSON response.");
     }
 
-    const data = await res.json();
     if (!res.ok) throw new Error(data.message || `API Error (${res.status})`);
     return data;
 }
@@ -413,18 +435,10 @@ window.placeBet = async function(marketId, side, amount) {
     if (!token) return alert("Login required"), false;
 
     try {
-        const res = await fetch(`${API_BASE}/api/place-bet`, { 
+        const data = await apiFetch('place-bet', {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "ngrok-skip-browser-warning": "true",
-                "Bypass-Tunnel-Reminder": "true"
-            },
-            body: JSON.stringify({ marketId, side, amount })
+            body: { marketId, side, amount }
         });
-
-        const data = await res.json();
 
         if (data.success) {
             // 1. Update Balance instantly from the server response
@@ -592,18 +606,11 @@ window.handleWithdrawSubmit = async function() {
     }
 
     try {
-        const response = await fetch(apiUrl('/api/withdraw'), {
+        const result = await apiFetch('withdraw', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'ngrok-skip-browser-warning': 'true',
-                'Bypass-Tunnel-Reminder': 'true'
-            },
-            body: JSON.stringify({ amount: amount })
+            body: { amount: amount }
         });
 
-        const result = await response.json();
         if (result.success) {
             alert("💸 Withdrawal request successful!");
             toggleWithdrawModal(); // Close modal
@@ -672,18 +679,11 @@ window.handleDepositSubmit = async function() {
     btn.disabled = true;
 
     try {
-        const response = await fetch(apiUrl('/api/stkpush'), {
+        const result = await apiFetch('stkpush', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'ngrok-skip-browser-warning': 'true',
-                'Bypass-Tunnel-Reminder': 'true'
-            },
-            body: JSON.stringify({ amount: amount })
+            body: { amount: amount }
         });
 
-        const result = await response.json();
         if (result.success) {
             alert("STK Push sent! Check your phone to enter your M-PESA PIN.");
             document.getElementById('depositModal').style.display = 'none';
@@ -699,14 +699,7 @@ window.handleDepositSubmit = async function() {
     }
 };
 async function refreshBalance() {
-    const res = await fetch(apiUrl('/api/user/sync-wallet'), {
-        headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'ngrok-skip-browser-warning': 'true',
-            'Bypass-Tunnel-Reminder': 'true'
-        }
-    });
-    const data = await res.json();
+    const data = await apiFetch('user/sync-wallet');
     if (data.success) {
         document.getElementById('userBalance').innerText = data.balance;
         alert("Balance synced with Blockchain!");
@@ -732,3 +725,5 @@ window.API = {
     deleteNotification,
     markNotificationsRead
 };
+window.API.apiFetch = apiFetch;
+window.apiFetch = apiFetch;

@@ -142,9 +142,13 @@ async function loadModules() {
 function initSocket() {
     const token = localStorage.getItem("token");
     if (!token) return;
+    if (!window.API_BASE || typeof io !== "function") {
+        console.warn("Socket skipped until the backend URL is configured.");
+        return;
+    }
 
     // Fix: Connect socket to the API_BASE (Backend) not the GitHub frontend
-    socket = io(API_BASE, {
+    socket = io(window.API_BASE, {
         auth: { token },
         transports: ["websocket"]
     });
@@ -993,7 +997,7 @@ function initAvatarUpload() {
             const token = localStorage.getItem("token");
             if (!token) return alert("You must be logged in to save your avatar.");
 
-            const res = await fetch(`${API_BASE}/api/update-avatar`, {
+            const res = await fetch(apiUrl('/api/update-avatar'), {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -1225,7 +1229,7 @@ async function login() {
     }
 
     try {
-        const res = await login({ phone, password });
+        const res = await window.API.login({ phone, password });
 
         if (res?.success && res.token) {
             localStorage.setItem("token", res.token);

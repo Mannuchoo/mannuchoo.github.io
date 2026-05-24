@@ -99,31 +99,6 @@
     <script src="/api.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        async function postJson(url, body) {
-            // Check if API_BASE is properly configured
-            if (!API_BASE) {
-                if (typeof showBackendSetupPrompt === 'function') {
-                    showBackendSetupPrompt();
-                }
-                throw new Error("Backend not configured. Start the PolySoko backend or set localStorage.backend_url_override and reload.");
-            }
-
-            // Prepend API_BASE from api.js
-            const res = await fetch(`${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "ngrok-skip-browser-warning": "true",
-                    "Bypass-Tunnel-Reminder": "true"
-                },
-                body: JSON.stringify(body)
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || "Server error. Check connection.");
-            return data;
-        }
-
         function showTermsModal() {
             const name = document.getElementById('regName').value.trim();
             const phone = document.getElementById('regPhone').value.trim();
@@ -159,7 +134,7 @@
             }
 
             try {
-                const data = await postJson("/api/login", { phone, password });
+                const data = await API.login({ phone, password });
 
                 if (data.success && data.token) {
                     localStorage.setItem("token", data.token);
@@ -200,7 +175,7 @@
             }
 
             try {
-                const data = await postJson("/api/register", payload);
+                const data = await API.register(payload);
                 if (data.success) {
                     alert("Account created! Please check your email to verify your account and activate your referral code.");
                     toggleAuth();
@@ -230,7 +205,10 @@
 
             try {
                 status.innerText = "Processing...";
-                const data = await postJson("/api/forgot-password", { phone });
+                const data = await apiFetch('forgot-password', {
+                    method: 'POST',
+                    body: { phone }
+                });
                 status.style.color = data.success ? "#00ff88" : "#ff4444";
                 status.innerText = data.success ? "Reset link sent to your email!" : (data.message || "Failed");
                 if(data.success) setTimeout(closeForgotModal, 3000);

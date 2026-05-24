@@ -7,7 +7,7 @@
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io https://*.ngrok-free.app https://*.ngrok-free.dev;
-        connect-src 'self' https://ipapi.co https://*.ipapi.co https://polysoko.com https://api.weatherapi.com https://nominatim.openstreetmap.org https://*.loca.lt https://*.ngrok-free.app https://*.ngrok-free.dev https://*.ngrok.io http://localhost:* ws: wss: https://uncorrelative-unportly-catalina.ngrok-free.dev;
+        connect-src 'self' https://ipapi.co https://*.ipapi.co https://polysoko.online https://api.weatherapi.com https://nominatim.openstreetmap.org https://*.loca.lt https://*.ngrok-free.app https://*.ngrok-free.dev https://*.ngrok.io http://localhost:* ws: wss:;
         frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com;
         media-src 'self' data: blob: https:;
         style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
@@ -25,8 +25,9 @@
         (function(){
             try {
                 var host = window.location.hostname || '';
+                var isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1';
                 var s = document.createElement('script');
-                if (host.includes('github.io')) {
+                if (!isLocal) {
                     s.src = 'https://cdn.socket.io/4.7.2/socket.io.min.js';
                 } else {
                     s.src = '/socket.io/socket.io.js';
