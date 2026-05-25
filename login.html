@@ -138,14 +138,14 @@
 
                 if (data.success && data.token) {
                     localStorage.setItem("token", data.token);
-                    window.location.href = "/index.html";
+                    window.location.href = "index.html";
                     return;
                 }
 
                 alert(data.message || "Login failed");
             } catch (err) {
                 console.error("Login error:", err);
-                alert(err.message || "Server error. Check connection.");
+                alert(err.message);
             }
         }
 
@@ -185,7 +185,7 @@
                 alert(data.message || "Registration failed");
             } catch (err) {
                 console.error("Register error:", err);
-                alert(err.message || "Server error. Check connection.");
+                alert(err.message);
             }
         }
 
@@ -205,16 +205,16 @@
 
             try {
                 status.innerText = "Processing...";
-                const data = await apiFetch('forgot-password', {
-                    method: 'POST',
-                    body: { phone }
+                const data = await apiFetch('forgot-password', { 
+                    method: 'POST', 
+                    body: { phone } 
                 });
                 status.style.color = data.success ? "#00ff88" : "#ff4444";
                 status.innerText = data.success ? "Reset link sent to your email!" : (data.message || "Failed");
                 if(data.success) setTimeout(closeForgotModal, 3000);
             } catch (err) {
                 status.style.color = "#ff4444";
-                status.innerText = err.message || "Server error. Check connection.";
+                status.innerText = err.message;
             }
         }
 

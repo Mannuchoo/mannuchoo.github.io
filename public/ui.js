@@ -1460,6 +1460,8 @@ async function fetchMarkets() {
 
         const markets = marketResponse?.markets || [];
         const newsMarkets = Array.isArray(newsResponse?.articles) ? newsResponse.articles : [];
+        const newsMarkets = (Array.isArray(newsResponse?.articles) ? newsResponse.articles : [])
+            .map(a => ({ ...a, category: 'news', id: a.id || `news_${Math.random().toString(36).substr(2, 9)}` }));
 
         const merged = [];
         const seenIds = new Set();

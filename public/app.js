@@ -215,10 +215,11 @@ function initSocket() {
     });
 }
 
-function escapeHtml(str) {
+window.escapeHtml = function(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"'`]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;','`':'&#96;'})[s]);
-}
+};
+const escapeHtml = window.escapeHtml;
 
 // Function to render the balance card in the main dashboard
 function renderBalanceDisplay() {
@@ -244,6 +245,8 @@ function renderBalanceDisplay() {
     if (typeof window.renderBalanceCard === 'function') {
         balanceCardContainer.innerHTML = window.renderBalanceCard(balance);
     }
+
+    window.updateNotificationBadge?.();
 }
 
 /**
@@ -847,7 +850,7 @@ window.markNotificationsRead = async function() {
     updateNotificationBadge();
 };
 
-async function updateNotificationBadge() {
+window.updateNotificationBadge = async function() {
     const res = await apiFetch('notifications');
     const unread = res?.notifications?.filter(n => !n.is_read).length || 0;
     const badge = document.getElementById('noteBadge');
@@ -855,7 +858,8 @@ async function updateNotificationBadge() {
         badge.style.display = unread > 0 ? 'flex' : 'none';
         badge.innerText = unread;
     }
-}
+};
+const updateNotificationBadge = window.updateNotificationBadge;
 
 window.switchBetTab = async function(status, btnElement) {
     const container = document.getElementById('bet-container');

@@ -1,7 +1,7 @@
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1"];
 const isLocalFrontend = LOCAL_HOSTS.includes(window.location.hostname);
 const isGitHubPages = !isLocalFrontend;
-const DEFAULT_GITHUB_PAGES_API_BASE = "";
+const DEFAULT_GITHUB_PAGES_API_BASE = "http://148.230.70.64:3000";
 
 function applyBackendUrlFromQuery() {
     const params = new URLSearchParams(window.location.search);
@@ -453,8 +453,9 @@ window.placeBet = async function(marketId, side, amount) {
             if (typeof refreshBets === "function") {
                 await refreshBets(); 
             }
-
-            alert("Bet confirmed!");
+            
+            window.showToast?.("🎯 Bet confirmed! Serious levels.", "#00ff88");
+            window.updateNotificationBadge?.();
             return true;
         } else {
             alert(data.message || "Bet failed");
@@ -549,11 +550,14 @@ window.processWithdraw = async function() {
         });
 
         // 3. Success Feedback
-        if (typeof showToast === 'function') {
-            showToast("💸 Withdrawal requested successfully! Check your M-Pesa.");
-        }
+        const user = JSON.parse(localStorage.getItem("user_data") || "{}");
+        const phone = user.phone || "registered number";
         
-        // 4. Update UI
+        window.showToast?.(`💸 Sent to Safaricom ${phone}. SMS & Email queued! Heritage levels reached.`, "#00ff88");
+        
+        // 4. Update Notifications Badge (The "Dot")
+        window.updateNotificationBadge?.();
+        
         if (typeof fetchProfile === 'function') fetchProfile(); // Updates balance display
         if (typeof loadHistory === 'function') loadHistory();   // Refreshes the new history table
         
@@ -562,7 +566,7 @@ window.processWithdraw = async function() {
     } catch (e) {
         console.error("Withdraw error:", e);
         if (typeof showToast === 'function') {
-            const errorMsg = e.message || "Insufficient balance or connection error";
+            const errorMsg = e.message || "Network error";
             showToast("❌ Withdraw failed: " + errorMsg, "red");
         }
     }
@@ -573,6 +577,8 @@ window.toggleWithdrawModal = function() {
     // IF THE MODAL IS MISSING, CREATE IT ON THE FLY
     if (!modal) {
         console.log("Withdraw modal missing. Creating universal instance...");
+        const user = JSON.parse(localStorage.getItem("user_data") || "{}");
+        const phone = user.phone || "registered number";
         const modalHtml = `
             <div id="withdrawModal" class="modal-overlay" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); z-index: 100000; justify-content: center; align-items: center; backdrop-filter: blur(5px);">
                 <div class="modal-content" style="background: #1a1b22; padding: 25px; border-radius: 16px; border: 1px solid #333; width: 90%; max-width: 350px;">
@@ -582,6 +588,7 @@ window.toggleWithdrawModal = function() {
                     </div>
                     <div class="modal-body">
                         <p style="color: gray; font-size: 0.8rem; margin-bottom:10px;">Minimum withdrawal: 100 sKES</p>
+                        <p style="color: #00ff88; font-size: 0.75rem; margin-bottom:15px; font-weight:bold;">Recipient: Safaricom M-Pesa (${phone})</p>
                         <input type="number" id="withdrawAmount" placeholder="Enter amount" style="width: 100%; background: #0b0c10; border: 1px solid #3f3f46; padding: 12px; border-radius: 8px; color: white; margin-bottom:20px;">
                         <button onclick="handleWithdrawSubmit()" style="width: 100%; background: #00ff88; color: black; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">💸 Request Withdrawal</button>
                     </div>
@@ -612,9 +619,13 @@ window.handleWithdrawSubmit = async function() {
         });
 
         if (result.success) {
-            alert("💸 Withdrawal request successful!");
-            toggleWithdrawModal(); // Close modal
-            if (window.fetchProfile) window.fetchProfile(); // Update balance
+            const user = JSON.parse(localStorage.getItem("user_data") || "{}");
+            const phone = user.phone || "registered number";
+            
+            window.showToast?.(`💸 Funds sent to ${phone}. SMS & Email dispatched. Clinical.`, "#00ff88");
+            window.updateNotificationBadge?.();
+            toggleWithdrawModal(); 
+            if (window.fetchProfile) window.fetchProfile(); 
         } else {
             alert(result.message || "Failed to process withdrawal");
         }
@@ -685,7 +696,8 @@ window.handleDepositSubmit = async function() {
         });
 
         if (result.success) {
-            alert("STK Push sent! Check your phone to enter your M-PESA PIN.");
+            window.showToast?.("📲 STK Push sent! Confirm on phone. Baller move.", "#00ff88");
+            window.updateNotificationBadge?.();
             document.getElementById('depositModal').style.display = 'none';
         } else {
             alert(result.message || "Deposit request failed");
@@ -725,5 +737,6 @@ window.API = {
     deleteNotification,
     markNotificationsRead
 };
+
 window.API.apiFetch = apiFetch;
 window.apiFetch = apiFetch;
