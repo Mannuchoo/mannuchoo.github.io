@@ -7,12 +7,12 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
         script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io; 
         style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; 
-        connect-src 'self' https://ipapi.co https://*.ipapi.co https://polysoko.com https://polysoko.online https://api.weatherapi.com https://nominatim.openstreetmap.org ws: wss:;
+        connect-src 'self' https://ipapi.co https://*.ipapi.co https://polysoko.com https://polysoko.online https://api.polysoko.online https://api.weatherapi.com https://nominatim.openstreetmap.org ws: wss:;
         img-src 'self' data: https:; 
         media-src 'self' data: blob: https:; 
         frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com;">
     <script>
-        const ADMIN_DEFAULT_API_BASE = "https://polysoko.online";
+        const ADMIN_DEFAULT_API_BASE = "https://api.polysoko.online";
         const ADMIN_LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1"];
         const adminIsProduction = !ADMIN_LOCAL_HOSTS.includes(window.location.hostname);
         function normalizeAdminBackend(rawUrl) {
@@ -42,7 +42,7 @@
                 <strong style="color:#00ff88;">PolySoko backend required</strong>
                 <p style="margin:8px 0 12px;color:#cbd5e1;font-size:.92rem;">Paste your current backend URL to connect this domain to the server.</p>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <input id="adminBackendUrlInput" placeholder="https://polysoko.online" value="${localStorage.getItem("backend_url_override") || ""}" style="flex:1;min-width:220px;padding:11px;border-radius:10px;border:1px solid #334155;background:#020617;color:white;">
+                    <input id="adminBackendUrlInput" placeholder="https://api.polysoko.online" value="${localStorage.getItem("backend_url_override") || ""}" style="flex:1;min-width:220px;padding:11px;border-radius:10px;border:1px solid #334155;background:#020617;color:white;">
                     <button id="adminBackendSaveBtn" style="padding:11px 16px;border:0;border-radius:10px;background:#00ff88;color:#020617;font-weight:800;cursor:pointer;">Save</button>
                 </div>
                 <div id="adminBackendSetupMessage" style="margin-top:10px;color:#cbd5e1;font-size:.85rem;"></div>
@@ -1413,7 +1413,7 @@ socket.on('newMarketPending', (data) => {
 const API = {
     async request(path, method = 'GET', body = null) {
         if (adminIsProduction && !ADMIN_API_BASE) {
-            throw new Error("Backend URL is not configured. Open this page with ?backend=https://polysoko.online or set localStorage.backend_url_override.");
+            throw new Error("Backend URL is not configured. Open this page with ?backend=https://api.polysoko.online or set localStorage.backend_url_override.");
         }
 
         try {

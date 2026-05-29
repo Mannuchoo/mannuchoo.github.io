@@ -1,7 +1,7 @@
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1"];
 const isLocalFrontend = LOCAL_HOSTS.includes(window.location.hostname);
 const isGitHubPages = !isLocalFrontend;
-const DEFAULT_GITHUB_PAGES_API_BASE = "https://polysoko.online";
+const DEFAULT_GITHUB_PAGES_API_BASE = "https://api.polysoko.online";
 
 function getApiBase() {
     if (isGitHubPages) {
