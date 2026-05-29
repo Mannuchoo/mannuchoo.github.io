@@ -1,15 +1,19 @@
-.ngrok.exe.old
-ngrok.exe
-node_modules/
-*.log
-PS/server/.env
-PS/server/*.db
-PS/server/node_modules/
-PS/public/uploads/
-PS/public/Copilot/
-PS/.github/
-PS/.vscode/
-PS/.nojekyll
-PS/cls
-PS/modules/
-PS/uploads/
+# Ignore everything
+/*
+
+# But UN-ignore these specific files/folders
+!admin.html
+!api.js
+!app.js
+!index.html
+!login.html
+!modules/
+!news-detail.html
+!persona.txt
+!reset.password.html
+!style.css
+!ui.js
+!.github/
+!.gitignore
+!.nojekyll
+!CNAME
