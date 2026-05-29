@@ -2,7 +2,6 @@
 ngrok.exe
 node_modules/
 *.log
-PS/
 PS/server/.env
 PS/server/*.db
 PS/server/node_modules/
