@@ -1,0 +1,15 @@
+.ngrok.exe.old
+ngrok.exe
+node_modules/
+*.log
+PS/server/.env
+PS/server/*.db
+PS/server/node_modules/
+PS/public/uploads/
+PS/public/Copilot/
+PS/.github/
+PS/.vscode/
+PS/.nojekyll
+PS/cls
+PS/modules/
+PS/uploads/

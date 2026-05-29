@@ -1,0 +1,9 @@
+server/
+node_modules/
+*.log
+public/Copilot/
+public/modules/
+public/uploads/
+
+ngrok.exe
+.ngrok.exe.old

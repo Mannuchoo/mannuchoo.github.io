@@ -1,0 +1,2200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Updated CSP to allow both local and CDN as backup -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io; 
+        style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; 
+        connect-src 'self' https://ipapi.co https://*.ipapi.co https://polysoko.com https://polysoko.online https://api.weatherapi.com https://nominatim.openstreetmap.org ws: wss:;
+        img-src 'self' data: https:; 
+        media-src 'self' data: blob: https:; 
+        frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com;">
+    <script>
+        const ADMIN_DEFAULT_API_BASE = "https://polysoko.online";
+        const ADMIN_LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1"];
+        const adminIsProduction = !ADMIN_LOCAL_HOSTS.includes(window.location.hostname);
+        function normalizeAdminBackend(rawUrl) {
+            if (!rawUrl) return "";
+            const trimmed = rawUrl.trim();
+            if (!trimmed) return "";
+            const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+            return withProtocol.replace(/\/+$/, "");
+        }
+        function getAdminBackendFromQuery() {
+            const params = new URLSearchParams(window.location.search);
+            const backend = normalizeAdminBackend(params.get("backend") || params.get("api"));
+            if (!backend) return "";
+            localStorage.setItem("backend_url_override", backend);
+            params.delete("backend");
+            params.delete("api");
+            const nextQuery = params.toString();
+            window.history.replaceState({}, "", `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`);
+            return backend;
+        }
+        function showAdminBackendSetupPrompt() {
+            if (!adminIsProduction || ADMIN_API_BASE || document.getElementById("adminBackendSetupPrompt")) return;
+            const banner = document.createElement("div");
+            banner.id = "adminBackendSetupPrompt";
+            banner.style = "position:fixed;top:16px;left:50%;transform:translateX(-50%);width:min(100%,540px);z-index:99999;background:#101820;border:1px solid #00ff88;border-radius:14px;padding:16px;color:white;box-shadow:0 18px 45px rgba(0,0,0,.45);font-family:Inter,Arial,sans-serif;";
+            banner.innerHTML = `
+                <strong style="color:#00ff88;">PolySoko backend required</strong>
+                <p style="margin:8px 0 12px;color:#cbd5e1;font-size:.92rem;">Paste your current backend URL to connect this domain to the server.</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <input id="adminBackendUrlInput" placeholder="https://polysoko.online" value="${localStorage.getItem("backend_url_override") || ""}" style="flex:1;min-width:220px;padding:11px;border-radius:10px;border:1px solid #334155;background:#020617;color:white;">
+                    <button id="adminBackendSaveBtn" style="padding:11px 16px;border:0;border-radius:10px;background:#00ff88;color:#020617;font-weight:800;cursor:pointer;">Save</button>
+                </div>
+                <div id="adminBackendSetupMessage" style="margin-top:10px;color:#cbd5e1;font-size:.85rem;"></div>
+            `;
+            document.body.appendChild(banner);
+            document.getElementById("adminBackendSaveBtn").onclick = () => {
+                const resolved = normalizeAdminBackend(document.getElementById("adminBackendUrlInput").value);
+                const msg = document.getElementById("adminBackendSetupMessage");
+                if (!resolved) {
+                    msg.textContent = "Enter your backend URL first.";
+                    return;
+                }
+                localStorage.setItem("backend_url_override", resolved);
+                msg.textContent = "Saved. Reloading...";
+                setTimeout(() => location.reload(), 600);
+            };
+        }
+        const ADMIN_API_BASE = adminIsProduction
+            ? (getAdminBackendFromQuery() || normalizeAdminBackend(localStorage.getItem("backend_url_override")) || ADMIN_DEFAULT_API_BASE)
+            : window.location.origin;
+        function adminApiUrl(path) {
+            if (/^https?:\/\//i.test(path)) return path;
+            const normalized = path.startsWith("/") ? path : `/${path}`;
+            return `${ADMIN_API_BASE}${normalized}`;
+        }
+        function adminAssetUrl(path, fallback = "/uploads/avatars/default.png") {
+            const value = path || fallback;
+            if (/^(data:|blob:|https?:\/\/)/i.test(value)) return value;
+            return adminApiUrl(value);
+        }
+        document.write(`<script src="${adminIsProduction ? 'https://cdn.socket.io/4.7.2/socket.io.min.js' : '/socket.io/socket.io.js'}"><\/script>`);
+        window.addEventListener("DOMContentLoaded", showAdminBackendSetupPrompt);
+    </script>
+    <title>PolySoko | Admin Panel</title>
+</head>
+<style>
+  /* ================= ROOT (HOME KIT 🔴) ================= */
+:root {
+    --sidebar-width: 260px;
+
+    /* Manchester United Core */
+    --mu-red: #da020e;
+    --mu-dark-red: #a40000;
+    --mu-gold: #fbe122;
+    --mu-dark-grey: #1a1a1a; /* FIXED MISSING VARIABLE */
+
+    /* Default = HOME */
+    --admin-bg: #0a0a0a;
+    --card: #111;
+    --border: #2a2a2a;
+
+    --accent: var(--mu-red);
+    --accent-soft: rgba(218, 2, 14, 0.15);
+
+    --text: #f5f5f5;
+    --text-dim: #999;
+
+    --yes: #00c853;
+    --no: #ff1744;
+}
+
+/* ================= ⚪ AWAY KIT ================= */
+body.theme-away {
+    --admin-bg: #f4f4f4;
+    --card: #ffffff;
+    --border: #ddd;
+
+    --accent: #000000;
+    --accent-soft: rgba(0,0,0,0.08);
+
+    --text: #111;
+    --text-dim: #555;
+}
+
+/* ================= 🔵 THIRD KIT ================= */
+body.theme-third {
+    --admin-bg: #0b1f3a;
+    --card: #102a4a;
+    --border: #1e3a5f;
+
+    --accent: #00aaff;
+    --accent-soft: rgba(0,170,255,0.15);
+
+    --text: #e6f2ff;
+    --text-dim: #9bbbd4;
+}
+
+/* ================= BASE ================= */
+body {
+    background: var(--admin-bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+}
+
+.admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: var(--sidebar-width);
+    background: var(--mu-dark-grey);
+    border-right: 1px solid var(--border);
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5000;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 4500;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+.admin-sidebar.open {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ================= MENU BUTTON ================= */
+.menu-trigger {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    background: var(--mu-dark-grey);
+    border: 1px solid var(--mu-red);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 6000;
+    transition: 0.3s;
+}
+
+.menu-trigger:hover {
+    transform: scale(1.1);
+    background: var(--mu-red);
+}
+
+.profile-trigger {
+    position: fixed;
+    top: 20px;
+    left: 80px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--mu-dark-grey);
+    border: 1px solid var(--mu-red);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 6000;
+    transition: 0.3s;
+}
+
+.profile-trigger:hover {
+    transform: scale(1.05);
+    background: var(--mu-red);
+}
+
+.profile-trigger span {
+    font-size: 1.2rem;
+}
+
+.menu-trigger span {
+    width: 4px;
+    height: 4px;
+    background: white;
+    border-radius: 50%;
+}
+
+.admin-main {
+    margin-top: 20px;
+    padding: 20px 40px;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    position: relative;
+    z-index: 10;
+    pointer-events: auto !important;
+}
+
+.admin-main input, 
+.admin-main select, 
+.admin-main textarea, 
+button {
+    pointer-events: auto !important;
+    position: relative;
+    z-index: 11;
+}
+/* ================= NAV ================= */
+.nav-item {
+    width: 100%;
+    padding: 14px 16px;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    font-size: 0.95rem;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-bottom: 8px;
+    transition: 0.2s ease;
+}
+
+.nav-item.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
+    box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.nav-item:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.admin-sidebar .sidebar-brand {
+    padding: 22px 20px 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.admin-sidebar .sidebar-brand h2 {
+    margin: 0;
+    color: white;
+    font-size: 1.1rem;
+}
+
+.admin-sidebar .close-btn {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: white;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.admin-sidebar .admin-nav-grid {
+    display: grid;
+    gap: 8px;
+    padding: 18px 16px 0;
+}
+
+.nav-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.05);
+    font-size: 1rem;
+}
+
+.nav-label {
+    flex: 1;
+}
+
+.admin-sidebar .sidebar-footer {
+    padding: 16px;
+    display: grid;
+    gap: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.admin-sidebar .sidebar-footer .btn-text {
+    width: 100%;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: 0.2s ease;
+    text-align: left;
+}
+
+.admin-sidebar .sidebar-footer button:not(.btn-text) {
+    width: auto;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.admin-sidebar .sidebar-footer .btn-text:hover,
+.admin-sidebar .sidebar-footer button:not(.btn-text):hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.btn-text.danger {
+    border-color: rgba(255,23,68,0.25);
+    color: #ff9494;
+}
+
+.admin-profile-card {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    margin-bottom: 20px;
+    background: var(--card);
+    padding: 22px;
+    border-radius: 24px;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.admin-profile-card .avatar-wrapper {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--mu-red);
+    background: linear-gradient(135deg, #111, #1d1d1d);
+}
+
+.admin-profile-card .avatar-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.admin-profile-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-profile-details h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: white;
+}
+
+.admin-profile-details .profile-meta {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    margin-top: 5px;
+}
+
+.admin-profile-details .admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.admin-profile-details .admin-actions .btn-primary {
+    padding: 10px 14px;
+}
+
+/* ================= SECTIONS ================= */
+.admin-section {
+    display: none;
+    animation: fadeIn 0.25s ease;
+}
+
+.admin-section.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ================= CARDS ================= */
+.stat-card {
+    background: linear-gradient(145deg, var(--card), #0d0d0d);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent, var(--accent-soft), transparent);
+    opacity: 0;
+    transition: 0.3s;
+}
+
+.stat-card:hover::before {
+    opacity: 1;
+}
+
+/* ================= TABLE ================= */
+.table-responsive {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+th {
+    background: rgba(255,255,255,0.03);
+    color: var(--text-dim);
+    padding: 14px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+td {
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s ease;
+}
+
+tbody tr:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.user-row {
+    cursor: pointer !important;
+    transition: background 0.2s ease;
+}
+
+.user-row:hover {
+    background: rgba(218, 2, 14, 0.08) !important;
+}
+
+.view-hint {
+    font-size: 0.65rem;
+    color: var(--mu-red);
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+tr[onclick] {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+}
+
+/* ================= TREASURY ================= */
+.treasury-card {
+    background: #000;
+    border: 1px solid var(--mu-red);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* ================= BUTTONS ================= */
+.btn-primary {
+    background: linear-gradient(135deg, var(--mu-red), var(--mu-dark-red));
+    color: white;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(218, 2, 14, 0.4);
+}
+
+.treasury-card {
+    background: linear-gradient(135deg, #1a1a1a, #0a0a0a); /* Darker gradient */
+    border: 1px solid var(--mu-red);
+    border-radius: 18px; /* Slightly more rounded */
+    padding: 25px; /* More padding */
+    margin-bottom: 30px; /* More space below */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(218, 2, 14, 0.2); /* Floating effect */
+    transition: all 0.3s ease; /* Smooth transitions */
+}
+
+.treasury-card:hover {
+    transform: translateY(-5px); /* Lift effect on hover */
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(218, 2, 14, 0.4);
+}
+
+.btn-approve {
+    background: var(--yes);
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-no {
+    background: var(--no);
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-approve:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(0,186,124,0.4);
+}
+
+.btn-approve:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.status-pill {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.market-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.market-table th {
+    text-align: left;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    color: #71767b;
+    font-size: 0.8rem;
+}
+
+.market-table td {
+    padding: 15px 12px;
+    border-bottom: 1px solid #16181c;
+    font-size: 0.9rem;
+}
+
+/* Hover effect for rows */
+.market-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.status-pending {
+    background: orange;
+    color: black;
+}
+
+.status-done {
+    background: var(--yes);
+    color: white;
+}
+
+/* ================= TOPBAR ================= */
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.sub {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+}
+
+/* ================= UTIL ================= */
+button, input, select {
+    cursor: pointer;
+}
+
+/* Remove blocking overlays */
+#loginBox, .overlay, .modal {
+    display: none !important;
+}
+
+@media (max-width: 768px) {
+    .admin-main {
+        padding: 60px 15px 20px 15px;
+    }
+}
+
+/* ================= ADMIN EXTRAS ================= */
+.admin-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 15px;
+    margin-top: 25px;
+}
+
+.admin-actions-grid button {
+    background: var(--mu-dark-grey);
+    border: 1px solid var(--border);
+    padding: 20px 10px;
+    border-radius: 16px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    transition: 0.2s;
+}
+
+.admin-actions-grid button:hover {
+    border-color: var(--mu-red);
+    transform: translateY(-3px);
+    background: rgba(255,255,255,0.02);
+}
+
+.admin-actions-grid button span {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+}
+
+.pill {
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: #111;
+    border: 1px solid #333;
+    color: #888;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.treasury-card h1 {
+    font-size: 3rem !important; /* Make balance bigger */
+    color: #00ff88 !important; /* Keep green for profit */
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.3); /* Subtle glow */
+}
+
+.treasury-card p {
+    font-size: 1rem !important; /* Make total user balances more readable */
+    color: var(--text-dim) !important;
+}
+
+.pill.active {
+    background: var(--mu-red);
+    color: white;
+    border-color: var(--mu-red);
+}
+
+.sidebar-info {
+    padding: 20px;
+    font-size: 0.8rem;
+    color: #777;
+    line-height: 1.4;
+}
+
+.sidebar-section-label {
+    color: #aaa;
+    font-weight: bold;
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+}
+
+.info-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    z-index: 12000;
+    justify-content: center;
+    align-items: center;
+}
+
+.info-modal.active {
+    display: flex;
+}
+
+.info-panel {
+    background: #1a1b23;
+    padding: 30px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    width: 90%;
+    max-width: 350px;
+    text-align: center;
+}
+
+.close-panel {
+    width: 100%;
+    margin-top: 20px;
+    padding: 12px;
+    background: #333;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.superadmin-info-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    background: var(--mu-red);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 10px rgba(218, 2, 14, 0.4);
+    z-index: 5;
+}
+    </style>
+
+<!-- MENU TRIGGER -->
+<div class="menu-trigger" id="adminMenuBtn" onclick="toggleAdminSidebar()">
+    <span></span>
+    <span></span>
+    <span></span>
+</div>
+
+<!-- SIDEBAR -->
+
+<div class="admin-sidebar">
+
+    <div class="sidebar-brand">
+
+        <h2>PolySoko</h2>
+
+        <button class="close-btn" onclick="toggleAdminSidebar()">×</button>
+
+    </div>
+
+
+
+    <div class="sidebar-info">
+        <div class="sidebar-section-label">ADMIN DASHBOARD</div>
+        <p>All action buttons are available on the SuperAdmin account panel.</p>
+        <p>Use the buttons below to navigate between admin tools and review balances.</p>
+    </div>
+
+
+
+    <div class="sidebar-footer">
+
+        <button class="btn-text" onclick="location.href='/'">🏠 Back to Site</button>
+
+        <button class="btn-text danger" onclick="adminLogout()">🚪 Logout</button>
+
+
+        <button onclick="setTheme('home')">🔴</button>
+
+        <button onclick="setTheme('away')">⚪</button>
+
+        <button onclick="setTheme('third')">🔵</button>
+
+    </div>
+
+</div>
+
+
+
+<!-- ✅ FIX: EVERYTHING INSIDE admin-main -->
+
+<div class="admin-main">
+
+
+
+    <!-- 🚀 CREATE SECTION -->
+
+    <div id="createSection" class="admin-section active">
+
+
+
+        <div class="stat-card">
+
+
+
+            <div class="card-header" style="margin-bottom:20px;">
+
+                <h2>🚀 Launch New Market</h2>
+
+                <p class="sub">Create a prediction market</p>
+
+            </div>
+
+
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+
+
+
+                <div style="grid-column: span 2;">
+
+                    <label>Market Question</label>
+
+                    <input id="mTitle" type="text"
+
+                        placeholder="e.g. Will Arsenal win their next match?"
+
+                        style="width:100%; padding:12px; margin-top:5px; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:8px;">
+
+                </div>
+
+
+
+                <div>
+
+                    <label>Category</label>
+
+                    <select id="mCategory"
+
+                        style="width:100%; padding:12px; margin-top:5px; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:8px;">
+
+                        <option value="football">Football</option>
+
+                        <option value="politics">Politics</option>
+
+                        <option value="crypto">Crypto</option>
+
+                        <option value="celebrities">Celebrities</option>
+
+                        <option value="news">News</option>
+
+                    </select>
+
+                </div>
+
+
+
+                <div>
+
+                    <label>Close Betting At</label>
+
+                    <input id="mExpiry" type="datetime-local"
+
+                        style="width:100%; padding:12px; margin-top:5px; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:8px;">
+
+                </div>
+
+
+
+                <div>
+
+                    <label>Side A</label>
+
+                    <input id="mSideA" type="text"
+
+                        value="YES"
+
+                        placeholder="Side A outcome"
+
+                        style="width:100%; padding:12px; margin-top:5px; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:8px;">
+
+                </div>
+
+                <div>
+
+                    <label>Side B</label>
+
+                    <input id="mSideB" type="text"
+
+                        value="NO"
+
+                        placeholder="Side B outcome"
+
+                        style="width:100%; padding:12px; margin-top:5px; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:8px;">
+
+                </div>
+
+                <div style="grid-column: span 2;">
+
+                    <label>Description</label>
+
+                    <textarea id="mDescription" rows="4"
+
+                        placeholder="Explain the market rules or context..."
+
+                        style="width:100%; padding:12px; margin-top:5px; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:8px; resize:none;"></textarea>
+
+                </div>
+
+                <div>
+
+                    <label>Media URL</label>
+
+                    <input id="mMediaUrl" type="url"
+
+                        placeholder="Image, video, or YouTube URL"
+
+                        style="width:100%; padding:12px; margin-top:5px; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:8px;">
+
+                </div>
+
+                <div>
+
+                    <label>Media Type</label>
+
+                    <select id="mMediaType"
+
+                        style="width:100%; padding:12px; margin-top:5px; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:8px;">
+
+                        <option value="auto">Auto detect</option>
+
+                        <option value="image">Image</option>
+
+                        <option value="video">Video</option>
+
+                        <option value="youtube">YouTube</option>
+
+                    </select>
+
+                </div>
+
+
+
+            </div>
+
+
+
+            <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
+
+                <button onclick="clearMarketForm()"
+
+                    style="padding:12px 18px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text);">
+
+                    Clear
+
+                </button>
+
+
+
+                <button onclick="publishMarket()" class="btn-primary">
+
+                    🚀 Publish Market
+
+                </button>
+
+            </div>
+
+
+
+        </div>
+
+    </div>
+
+
+
+    <!-- 🛠️ MARKETS -->
+
+    <div id="marketsSection" class="admin-section">
+        <button onclick="showSection('adminAccountSection')" style="background:none; border:none; color:var(--mu-red); font-weight:bold; cursor:pointer; margin-bottom:15px; display:flex; align-items:center; gap:5px;">← Back to Dashboard</button>
+        <div class="stat-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+
+                <h3>🛠️ Active Markets Manager</h3>
+
+
+
+                <select id="adminCategoryFilter" onchange="loadAdminMarkets()"
+
+                    style="padding:10px; background:#000; color:white; border:1px solid var(--border); border-radius:8px;">
+
+                    <option value="all">All Categories</option>
+
+                    <option value="politics">Politics</option>
+
+                    <option value="celebrities">Celebrities</option>
+
+                    <option value="football">Football</option>
+
+                    <option value="crypto">Crypto</option>
+
+                    <option value="news">News</option>
+
+                </select>
+
+            </div>
+
+
+
+            <div id="adminMarketList"></div>
+
+
+
+        </div>
+
+    </div>
+
+<div id="betsSection" class="admin-section">
+    <button onclick="showSection('adminAccountSection')" style="background:none; border:none; color:var(--mu-red); font-weight:bold; cursor:pointer; margin-bottom:15px; display:flex; align-items:center; gap:5px;">← Back to Dashboard</button>
+    <div class="stat-card">
+        <div class="card-header" style="margin-bottom:20px;">
+
+            <h2 class="mu-text">📈 All Prediction History</h2>
+
+            <p class="sub">Real-time overview of all placed wagers</p>
+
+        </div>
+
+
+
+        <div class="table-responsive">
+
+            <table class="market-table">
+
+                <thead>
+
+                    <tr>
+
+                        <th>Bet ID</th>
+
+                        <th>User</th>
+
+                        <th>Market Title</th>
+
+                        <th>Stake (KES)</th>
+
+                        <th>Outcome Picked</th>
+
+                        <th>Status</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody id="globalBetsTable">
+
+                    </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+    <!-- 💰 WITHDRAWALS -->
+
+    <div id="transactionsSection" class="admin-section">
+        <button onclick="showSection('adminAccountSection')" style="background:none; border:none; color:var(--mu-red); font-weight:bold; cursor:pointer; margin-bottom:15px; display:flex; align-items:center; gap:5px;">← Back to Dashboard</button>
+        <div class="stat-card">
+
+            <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:20px;">
+                <div>
+                    <h3>💰 Transactions & Approvals</h3>
+                    <p class="sub">Review and manage platform deposits and withdrawals.</p>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="txFilterDeposit" class="pill" onclick="setTransactionFilter('deposit')">Deposits</button>
+                    <button id="txFilterWithdraw" class="pill active" onclick="setTransactionFilter('withdraw')">Withdrawals</button>
+                    <button id="txFilterAdminwire" class="pill" onclick="setTransactionFilter('admin_wire')">Wired</button>
+                </div>
+            </div>
+            <div style="margin-bottom:20px;">
+                <input type="text" placeholder="Search phone or ref..." oninput="filterAdminTable('withdrawalsTable', this.value)" 
+                       style="width:100%; padding:12px; background:#000; border:1px solid #333; color:white; border-radius:8px;">
+            </div>
+
+            <div class="table-responsive">
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+
+                            <th>User Phone</th>
+
+                            <th>Amount (sKES)</th>
+
+                            <th>Date</th>
+
+                            <th>Action</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody id="withdrawalsTable"></tbody>
+
+                </table>
+
+            </div>
+
+
+
+        </div>
+
+    </div>
+
+    <!-- 👥 USERS SECTION -->
+    <div id="usersSection" class="admin-section">
+        <button onclick="showSection('adminAccountSection')" style="background:none; border:none; color:var(--mu-red); font-weight:bold; cursor:pointer; margin-bottom:15px; display:flex; align-items:center; gap:5px;">← Back to Dashboard</button>
+        <div class="stat-card">
+            <div class="card-header" style="margin-bottom:20px;">
+                <h2 class="mu-text">👥 User Management</h2>
+                <p class="sub">View and manage all registered accounts</p>
+            </div>
+
+            <div style="margin-bottom:20px;">
+                <input type="text" placeholder="Search name or phone..." oninput="filterAdminTable('adminUsersTable', this.value)" 
+                       style="width:100%; padding:12px; background:#000; border:1px solid #333; color:white; border-radius:8px;">
+            </div>
+
+            <div class="table-responsive">
+                <table class="market-table">
+                    <thead>
+                        <tr>
+                            <th>User Details</th>
+                            <th>Balance</th>
+                            <th>Status</th>
+                            <th>Package</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminUsersTable">
+                        <tr><td colspan="5" style="text-align:center; padding:30px; color:#666;">Loading user directory...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🆕 MARKET APPROVALS SECTION -->
+    <div id="marketApprovalsSection" class="admin-section">
+        <button onclick="showSection('adminAccountSection')" style="background:none; border:none; color:var(--mu-red); font-weight:bold; cursor:pointer; margin-bottom:15px; display:flex; align-items:center; gap:5px;">← Back to Dashboard</button>
+        <div class="stat-card">
+
+            <div class="card-header" style="margin-bottom:20px;">
+
+                <h2 class="mu-text">⭐ Market Creator Approvals</h2>
+
+                <p class="sub">Review and approve markets created by market admins</p>
+
+            </div>
+
+            <div id="pendingMarketsContainer" style="display: grid; gap: 12px;">
+                <div style="text-align: center; padding: 30px; color: #666;">Loading pending markets...</div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- 👤 USER DETAIL MODAL -->
+    <div id="adminUserDetailModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:9000; justify-content:center; align-items:center;">
+        <div style="background:#1a1a1a; width:90%; max-width:450px; padding:30px; border-radius:16px; border:1px solid #333; position:relative;">
+            <button onclick="document.getElementById('adminUserDetailModal').style.display='none'" style="position:absolute; right:15px; top:15px; background:none; border:none; color:gray; font-size:1.5rem;">×</button>
+            <div id="userDetailContent" style="pointer-events: auto !important;"></div>
+        </div>
+    </div>
+
+<!-- 👑 MY ACCOUNT CENTER -->
+<div id="adminAccountSection" class="admin-section active">
+    <div class="stat-card">
+        <div style="text-align:center; margin-bottom:30px;">
+            <div style="font-size:3rem; margin-bottom:10px;">👑</div>
+            <h2 style="margin:0; letter-spacing:1px; text-transform:uppercase;">Admin Control</h2>
+        </div>
+
+        <div id="superAdminProfile" class="admin-profile-card">
+            <div class="avatar-wrapper">
+                <img id="superAdminAvatar" src="/uploads/avatars/default.png" alt="Admin avatar" onerror="this.onerror=null; this.src='/uploads/avatars/default.png';">
+            </div>
+            <div class="admin-profile-details">
+                <h2 id="superName">SuperAdmin</h2>
+                <div id="superPhone" class="profile-meta">+2547XXXXXXXX</div>
+                <div id="superEmail" class="profile-meta" style="margin-top:8px;">superadmin@polysoko.com</div>
+            </div>
+        </div>
+
+        <div class="treasury-card">
+            <div>
+                <small style="color:gray; display:block; text-transform:uppercase; font-size:0.6rem;">Profit Reserve</small>
+                <h1 id="adminTreasuryBal" style="margin:5px 0;">sKES 0.00</h1>
+                <p id="platformBalanceTotal" style="margin:0; color:var(--text-dim); font-size:0.9rem;">Total user balances: sKES 0.00</p>
+            </div>
+        </div>
+
+        <div class="admin-actions-grid">
+            <button onclick="showSection('createSection')">
+                <div style="font-size:1.8rem;">🚀</div>
+                <span>Launch Market</span>
+            </button>
+            <button onclick="showSection('marketsSection'); loadAdminMarkets();">
+                <div style="font-size:1.8rem;">🛠️</div>
+                <span>Manage Markets</span>
+            </button>
+            <button onclick="showSection('betsSection'); loadGlobalActiveBets();">
+                <div style="font-size:1.8rem;">📈</div>
+                <span>All Bets History</span>
+            </button>
+            <button onclick="showSection('usersSection'); loadAdminUsers();">
+                <div style="font-size:1.8rem;">👥</div>
+                <span>User Directory</span>
+            </button>
+            <button onclick="showSection('transactionsSection'); setTransactionFilter('withdraw');">
+                <div style="font-size:1.8rem;">💰</div>
+                <span>Transactions</span>
+            </button>
+            <button onclick="showSection('marketApprovalsSection'); loadPendingMarkets();">
+                <div style="font-size:1.8rem;">⭐</div>
+                <span>Approvals</span>
+            </button>
+            <button onclick="openWireModal('metamask')">
+                <div style="font-size:1.8rem;">🦊</div>
+                <span>Wire Crypto</span>
+            </button>
+            <button onclick="openWireModal('till')">
+                <div style="font-size:1.8rem;">📲</div>
+                <span>Wire Till</span>
+            </button>
+            <button onclick="location.reload()">
+                <div style="font-size:1.8rem;">🔄</div>
+                <span>Resync</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 🛠️ ACTION CONFIRMATION MODAL -->
+<div id="adminActionModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10000; justify-content:center; align-items:center;">
+    <div style="background:#1a1b23; width:95%; max-width:400px; padding:25px; border-radius:16px; border:1px solid #333;">
+        <h3 id="actionModalTitle" style="color:#00ff88; margin-top:0;">Confirm Action</h3>
+        <p id="actionModalUser" style="color:white; font-size:0.9rem; margin-bottom:15px;"></p>
+        
+        <div style="margin-bottom:15px;">
+            <label style="color:#888; font-size:0.7rem; display:block; margin-bottom:5px;">VIOLATION CATEGORY</label>
+            <select id="violationCategory" onchange="autoFillReason()" style="width:100%; padding:10px; background:#000; border:1px solid #444; color:white; border-radius:8px;">
+                <option value="">-- Select Violation --</option>
+                <option value="scraping">Section 5: Automated Scrapers/Spiders</option>
+                <option value="exploit">Section 5: Exploiting Vulnerabilities</option>
+                <option value="reverse">Section 5: Reverse Engineering</option>
+                <option value="age">Section 1: Underage Account (Under 18)</option>
+                <option value="multi">Section 1: Multiple Account Abuse</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom:15px;">
+            <label style="color:#888; font-size:0.7rem; display:block; margin-bottom:5px;">ADMINISTRATIVE REASON (Emailed to user)</label>
+            <textarea id="actionReason" placeholder="Explain why this action is being taken..." 
+                style="width:100%; height:80px; background:#000; border:1px solid #444; color:white; padding:10px; border-radius:8px; resize:none; font-size:0.85rem;"></textarea>
+        </div>
+
+        <div id="deleteWarning" style="display:none; background:rgba(255,68,68,0.1); border:1px solid #ff4444; padding:10px; border-radius:8px; margin-bottom:15px;">
+            <p style="color:#ff4444; font-size:0.75rem; margin:0;">⚠️ <b>Financial Transfer:</b> User's remaining balance will be pushed to the main finance account before deletion.</p>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+            <button id="confirmActionBtn" class="btn-primary" style="flex:1;">Confirm & Email</button>
+            <button onclick="document.getElementById('adminActionModal').style.display='none'" style="flex:1; background:#333; color:white; border:none; border-radius:10px; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ UPGRADE CONFIRMATION MODAL -->
+<div id="adminUpgradeModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10001; justify-content:center; align-items:center;">
+    <div style="background:#1a1b23; width:95%; max-width:420px; padding:25px; border-radius:16px; border:1px solid #333;">
+        <h3 style="color:#00ff88; margin-top:0;">Confirm Upgrade</h3>
+        <p id="upgradeModalMessage" style="color:white; font-size:0.95rem; margin-bottom:20px;"></p>
+        <div style="display:flex; gap:10px;">
+            <button id="confirmUpgradeBtn" class="btn-primary" style="flex:1;">Upgrade User</button>
+            <button onclick="document.getElementById('adminUpgradeModal').style.display='none'" style="flex:1; background:#333; color:white; border:none; border-radius:10px; cursor:pointer;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- 💸 WIRE FUNDS MODAL -->
+<div id="superAdminInfoModal" class="info-modal">
+    <div class="info-panel" onclick="event.stopPropagation()">
+        <h3 style="color: var(--mu-red);">SuperAdmin Info</h3>
+        <p><strong>Name:</strong> <span id="infoName">SuperAdmin</span></p>
+        <p><strong>Phone:</strong> <span id="infoPhone">+2547XXXXXXXX</span></p>
+        <p><strong>Email:</strong> <span id="infoEmail">superadmin@polysoko.com</span></p>
+        <p><strong>Total platform balance:</strong> <span id="infoTotalBalance">sKES 0.00</span></p>
+        <p><strong>Admin Wallet:</strong> <span id="infoWallet">Not set</span></p>
+        <p><strong>Business Till:</strong> <span id="infoTill">Not set</span></p>
+        <button class="close-panel" onclick="document.getElementById('superAdminInfoModal').classList.remove('active')">Close</button>
+    </div>
+</div>
+
+<!-- 💸 WIRE FUNDS MODAL (Moved to after superAdminInfoModal for better organization) -->
+<div id="adminWireModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:11000; justify-content:center; align-items:center;">
+    <div style="background:#1a1b23; width:95%; max-width:400px; padding:30px; border-radius:20px; border:1px solid #333; text-align:center;">
+        <div id="wireModalIcon" style="font-size:3rem; margin-bottom:15px;"></div>
+        <h2 id="wireModalTitle" style="color:white; margin:0 0 10px 0;">Wire Profits</h2>
+        <p id="wireModalDesc" style="color:#888; font-size:0.85rem; margin-bottom:20px;"></p>
+        
+        <div style="background:#000; padding:15px; border-radius:12px; margin-bottom:20px; border:1px solid #444;">
+            <label style="color:gray; font-size:0.7rem; display:block; text-align:left; margin-bottom:5px;">AMOUNT TO WIRE (sKES)</label>
+            <input id="wireAmount" type="number" placeholder="0.00" 
+                style="width:100%; background:none; border:none; color:#00ff88; font-size:1.8rem; font-weight:bold; text-align:center; outline:none;">
+        </div>
+
+        <div style="background:rgba(0,255,136,0.05); border:1px solid rgba(0,255,136,0.2); padding:12px; border-radius:10px; margin-bottom:20px; text-align:left;">
+            <p style="color:#00ff88; font-size:0.75rem; margin:0;">🛡️ <b>Security Protocol:</b> Wires are irreversible and processed via the primary platform node.</p>
+        </div>
+
+        <div style="display:flex; gap:12px;">
+            <button id="confirmWireBtn" class="btn-primary" style="flex:1;">Execute Wire</button>
+            <button onclick="document.getElementById('adminWireModal').style.display='none'" style="flex:1; background:#333; color:white; border:none; border-radius:10px; cursor:pointer;">Abort</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const socket = ADMIN_API_BASE && typeof io === "function"
+    ? io(ADMIN_API_BASE, { auth: { token: localStorage.getItem("token") } })
+    : { on() {}, emit() {} };
+
+socket.on('connect', () => {
+    console.log("✅ Admin Socket Connected");
+    socket.emit('adminJoin');
+});
+
+socket.on('newMarketPending', (data) => {
+    console.log("🆕 New market submission received:", data.title);
+    if (document.getElementById('marketApprovalsSection').classList.contains('active')) {
+        loadPendingMarkets();
+    }
+});
+
+const API = {
+    async request(path, method = 'GET', body = null) {
+        if (adminIsProduction && !ADMIN_API_BASE) {
+            throw new Error("Backend URL is not configured. Open this page with ?backend=https://polysoko.online or set localStorage.backend_url_override.");
+        }
+
+        try {
+            const res = await fetch(adminApiUrl('/api' + path), {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem("token")}`
+                },
+                body: body ? JSON.stringify(body) : null
+            });
+
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await res.text();
+                console.error("❌ Expected JSON but got:", text.slice(0, 100));
+                const msg = "Server returned a non-JSON response. Check the backend URL and try again.";
+                if (/Android|iPhone/i.test(navigator.userAgent)) {
+                    console.warn(msg);
+                }
+                throw new Error(msg);
+            }
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || "Request failed");
+            return data;
+        } catch (err) {
+            console.error(`API ERROR [${method} ${path}]`, err);
+            throw err;
+        }
+    },
+    get(path) { return this.request(path, 'GET'); },
+    post(path, body) { return this.request(path, 'POST', body); }
+};
+
+window.filterAdminList = function(containerId, query) {
+    const cards = document.querySelectorAll(`#${containerId} > div`);
+    cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        card.style.display = text.includes(query.toLowerCase()) ? 'block' : 'none';
+    });
+};
+
+window.filterAdminTable = function(tableBodyId, query) {
+    const rows = document.querySelectorAll(`#${tableBodyId} tr`);
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(query.toLowerCase()) ? '' : 'none';
+    });
+};
+
+window.currentTransactionFilter = 'withdraw';
+
+/* ================= UI HELPERS ================= */
+window.toggleAdminSidebar = function(forceClose = false) {
+    const sidebar = document.querySelector('.admin-sidebar');
+    const overlay = document.getElementById('adminOverlay');
+    if (!sidebar) return;
+    if (forceClose === true) {
+        sidebar.classList.remove('open');
+        overlay?.classList.remove('active');
+    } else {
+        sidebar.classList.toggle('open');
+        overlay?.classList.add('active');
+    }
+};
+
+window.showSection = function(id, btn) {
+    document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    const section = document.getElementById(id);
+    if (section) section.classList.add('active');
+    if (btn) btn.classList.add('active');
+    
+    // Persistence: Save current view
+    localStorage.setItem('admin_last_view', id);
+
+    if (id === 'adminAccountSection') loadAdminTreasury();
+    if (id === 'usersSection') loadAdminUsers();
+    if (id === 'betsSection') loadGlobalActiveBets();
+    if (id === 'transactionsSection') loadTransactions();
+    if (id === 'marketApprovalsSection') loadPendingMarkets();
+    if (id === 'marketsSection') loadAdminMarkets();
+    window.toggleAdminSidebar(true);
+};
+
+function setTheme(type) {
+    document.body.classList.remove('theme-away', 'theme-third');
+    if (type === 'away') document.body.classList.add('theme-away');
+    if (type === 'third') document.body.classList.add('theme-third');
+}
+
+async function loadAdminTreasury() {
+    try {
+        const res = await API.get('/admin/stats');
+        if(res.success) {
+            document.getElementById('adminTreasuryBal').innerText = `sKES ${Number(res.profit || 0).toFixed(2)}`;
+            document.getElementById('platformBalanceTotal').innerText = `Total user balances: sKES ${Number(res.platformTotal || 0).toFixed(2)}`;
+        }
+    } catch(e) { console.error(e); }
+}
+
+window.openSuperAdminInfo = async function() {
+    try {
+        const stats = await API.get('/admin/stats');
+        document.getElementById('infoName').innerText = document.getElementById('superName').innerText;
+        document.getElementById('infoPhone').innerText = document.getElementById('superPhone').innerText;
+        document.getElementById('infoEmail').innerText = document.getElementById('superEmail').innerText;
+        document.getElementById('infoTotalBalance').innerText = document.getElementById('platformBalanceTotal')?.innerText || 'sKES 0.00';
+        document.getElementById('infoWallet').innerText = stats.adminWallet || 'Not set';
+        document.getElementById('infoTill').innerText = stats.adminTill || 'Not set';
+        document.getElementById('superAdminInfoModal').classList.add('active');
+    } catch (e) {
+        console.error('Failed to open profile info', e);
+        alert('Unable to load profile info.');
+    }
+}
+
+window.openWireModal = async function(type) {
+    const modal = document.getElementById('adminWireModal');
+    const icon = document.getElementById('wireModalIcon');
+    const title = document.getElementById('wireModalTitle');
+    const desc = document.getElementById('wireModalDesc');
+    const amountInput = document.getElementById('wireAmount');
+    const confirmBtn = document.getElementById('confirmWireBtn');
+
+    const stats = await API.get('/admin/stats');
+
+    if(type === 'metamask') {
+        icon.innerText = '🦊';
+        title.innerText = 'Wire to MetaMask';
+        desc.innerHTML = `Destination: <code style="display:block; background:#000; padding:5px; margin-top:5px; font-size:0.7rem;">${stats.adminWallet}</code>`;
+    } else {
+        icon.innerText = '📲';
+        title.innerText = 'Wire to Business Till';
+        desc.innerText = 'Funds will be settled directly to Business Till 4447028 via M-Pesa B2C node.';
+    }
+    
+    amountInput.value = '';
+    modal.style.display = 'flex';
+
+    confirmBtn.onclick = async () => {
+        const amt = parseFloat(amountInput.value);
+        if(!amt || amt <= 0) return alert("Enter a valid amount to wire.");
+        
+        confirmBtn.disabled = true;
+        confirmBtn.innerText = "Processing Node...";
+        
+        try {
+            const res = await API.post('/admin/wire-funds', { amount: amt, type });
+            alert(`🚀 WIRE SUCCESSFUL: sKES ${amt.toFixed(2)} logged and sent to ${type}.`);
+            modal.style.display = 'none';
+            loadAdminTreasury();
+            loadTransactions();
+        } catch (e) { alert("Wire failed: " + e.message); }
+        finally {
+            confirmBtn.disabled = false;
+            confirmBtn.innerText = "Execute Wire";
+        }
+    };
+};
+
+/* ================= INIT ================= */
+window.onload = () => {
+    if (!localStorage.getItem("token")) return adminLogout();
+    
+    // Sync the transaction filter pill UI on load
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    document.getElementById('txFilterWithdraw')?.classList.add('active');
+
+    const lastView = localStorage.getItem('admin_last_view') || 'adminAccountSection';
+    showSection(lastView);
+    initAdmin();
+};
+async function initAdmin() {
+    loadAdminTreasury();
+    await Promise.all([loadGlobalActiveBets(), loadTransactions()]);
+}
+
+async function loadTransactions() {
+    const table = document.getElementById("withdrawalsTable");
+    if (!table) return;
+    try {
+        const data = await API.get('/admin/mpesa-log');
+        let list = data.logs || [];
+        const filter = window.currentTransactionFilter;
+
+        if (filter !== 'all') {
+            if (filter === 'deposit') {
+                list = list.filter(tx => ['deposit', 'stk_request', 'referral_bonus', 'crypto'].includes(tx.type));
+            } else if (filter === 'withdraw') {
+                        list = list.filter(tx => tx.type === 'withdraw');
+                    } else {
+                        list = list.filter(tx => tx.type === filter);
+                    }
+        }
+
+        if (!list || list.length === 0) {
+            table.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:#888;">No records found</td></tr>`;
+            return;
+        }
+
+        table.innerHTML = list.map(tx => {
+            const isPending = tx.status === 'pending';
+            const isWithdrawal = tx.type === 'withdraw';
+            let actionContent = `<span class="status-pill status-${tx.status}">${tx.status}</span>`;
+            if (isPending && isWithdrawal) {
+                actionContent = `
+                    <button class="btn-approve" onclick="approveWithdraw('${tx.id}')">✅ Approve Withdraw</button>
+                    <button class="btn-no" style="padding:6px 12px; background:#ff4444; color:#fff; border:none; border-radius:6px;" onclick="rejectWithdraw('${tx.id}')">❌ Reject</button>
+                `;
+            }
+            
+            let typeLabel = tx.type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+            let amountColor = 'white';
+            if (tx.type === 'stk_request' || tx.type === 'deposit' || tx.type === 'referral_bonus' || tx.type === 'crypto') {
+                typeLabel = 'Deposit';
+                amountColor = 'var(--yes)';
+            } else if (tx.type === 'withdraw') {
+                typeLabel = 'Withdrawal';
+                amountColor = 'var(--no)'; // Withdrawals are negative, so red
+            } else if (tx.type === 'admin_wire') {
+                typeLabel = 'Admin Wire';
+                amountColor = '#ffaa00'; // Orange for admin outgoing
+            }
+
+            const timestamp = new Date(tx.timestamp || tx.created_at || Date.now());
+            return `<tr>
+                <td style="padding:12px;"><b>${tx.user_phone}</b><br><small>${typeLabel}</small></td>
+                <td style="padding:12px; color:${amountColor};">sKES ${Math.abs(tx.amount)}</td>
+                <td style="padding:12px; color:gray; font-size:0.8rem;">${timestamp.toLocaleString()}</td>
+                <td style="padding:12px;">${actionContent}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) { console.error("Transactions load failed:", e); table.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:#ff4444;">Failed to load records</td></tr>`; }
+}
+
+window.setTransactionFilter = function(f) {
+    window.currentTransactionFilter = f;
+    document.querySelectorAll('.pill').forEach(b => b.classList.remove('active')); // Deactivate all pills
+    const targetId = 'txFilter' + f.charAt(0).toUpperCase() + f.slice(1).replace('_', ''); // Handle 'admin_wire' -> 'AdminWire'
+    document.getElementById(targetId)?.classList.add('active');
+
+    loadTransactions();
+};
+
+async function approveWithdraw(txId) {
+    try {
+        const data = await API.post('/admin/approve-withdraw-fast', { txId });
+        if (data.success) loadTransactions(); else alert(data.message);
+    } catch (e) { alert("Failed to approve"); }
+}
+
+async function rejectWithdraw(txId) {
+    const reason = prompt("Enter rejection reason:");
+    if (reason === null) return;
+    try {
+        const data = await API.post('/admin/reject-withdraw', { txId, reason });
+        if (data.success) loadTransactions(); else alert(data.message);
+    } catch (e) { alert("Failed to reject"); }
+}
+
+// 🆕 MARKET APPROVALS
+async function loadPendingMarkets() {
+    try {
+        const container = document.getElementById('pendingMarketsContainer');
+        container.innerHTML = '<div style="text-align:center;padding:20px;color:#666;">Loading...</div>';
+        
+        const data = await API.get('/admin/pending-markets');
+        if (!data.success) {
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:#ff4444;">Unable to load pending markets.</div>';
+            return;
+        }
+        const markets = data.markets || [];
+        
+        if (markets.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:30px;color:#666;">No pending markets to approve</div>';
+            return;
+        }
+        
+        container.innerHTML = markets.map(m => `
+            <div style="background:#1a1b23; border:1px solid #333; border-radius:12px; padding:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:10px;">
+                    <div>
+                        <h3 style="margin:0; color:#00ff88;">${m.title}</h3>
+                        <p style="color:#888; font-size:0.85rem; margin:5px 0;">Created by: ${m.creator_name || m.creator_phone}</p>
+                    </div>
+                    <span style="background:#333; padding:4px 8px; border-radius:4px; font-size:0.75rem; color:#aaa;">
+                        ${(m.category || 'general').toUpperCase()}
+                    </span>
+                </div>
+                <p style="color:#bbb; margin:8px 0; font-size:0.9rem;">${m.description || m.content || 'No description provided'}</p>
+                
+                <div style="display:flex; gap:8px; margin:10px 0; padding:10px; background:#0a0a0a; border-radius:6px;">
+                    <span style="flex:1; color:#888; font-size:0.85rem;">Side A: ${m.sideA || 'YES'} (${m.oddsA || 1.9})</span>
+                    <span style="flex:1; color:#888; font-size:0.85rem;">Side B: ${m.sideB || 'NO'} (${m.oddsB || 1.9})</span>
+                </div>
+                
+                <div style="display:flex; gap:8px; margin-top:12px;">
+                    <button onclick="approveMarket('${m.id}')" style="flex:1; padding:8px; background:#00ff88; color:black; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">
+                        ✅ Approve
+                    </button>
+                    <button onclick="rejectMarket('${m.id}')" style="flex:1; padding:8px; background:#ff4444; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">
+                        ❌ Reject
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error("Failed to load pending markets:", e);
+        document.getElementById('pendingMarketsContainer').innerHTML = '<div style="color:#ff4444;">Error loading markets</div>';
+    }
+}
+
+async function approveMarket(marketId) {
+    try {
+        const data = await API.post('/admin/approve-market', { marketId });
+        if (data.success) {
+            alert('Market approved!');
+            loadPendingMarkets();
+        } else {
+            alert(data.message || 'Failed to approve');
+        }
+    } catch (e) {
+        alert('Error approving market');
+    }
+}
+
+async function rejectMarket(marketId) {
+    if (!confirm('Are you sure you want to reject this market?')) return;
+    
+    try {
+        const data = await API.post('/admin/reject-market', { marketId });
+        if (data.success) {
+            alert('Market rejected');
+            loadPendingMarkets();
+        } else {
+            alert(data.message || 'Failed to reject');
+        }
+    } catch (e) {
+        alert('Error rejecting market');
+    }
+}
+
+async function bulkApproveEliteMarkets() {
+    if (!confirm("Are you sure you want to bulk approve all pending markets from Elite users?")) {
+        return;
+    }
+
+    try {
+        const res = await API.post('/admin/bulk-approve-elite-markets');
+        if (res.success) {
+            alert(`${res.count || 0} markets approved!`);
+            loadPendingMarkets(); // Refresh the list
+        } else {
+            alert(res.message || "Bulk approval failed.");
+        }
+    } catch (e) {
+        console.error("Bulk approval error:", e);
+        alert("Error during bulk approval.");
+    }
+}
+/* ================= USERS ================= */
+async function loadAdminUsers() {
+    const table = document.getElementById("adminUsersTable");
+    if (!table) return;
+    try {
+        const res = await API.get('/admin/users');
+        if (res.success && res.users) {
+            table.innerHTML = res.users.map(u => `
+                <tr class="user-row" onclick="handleUserRowClick(event, '${u.phone}')">
+                    <td>
+                        <div style="font-weight:bold; color:white;">${u.name || 'No Name'}</div>
+                    <td>${parseFloat(u.balance || 0).toFixed(2)} sKES</td>
+                    <td>
+                        <span class="status-pill" style="background:${u.is_suspended == 1 ? '#ff4444' : '#00ff88'}; color:${u.is_suspended == 1 ? 'white' : 'black'}; pointer-events:none;">
+                            ${u.is_suspended == 1 ? 'SUSPENDED' : 'ACTIVE'}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="status-pill" style="background:${u.is_upgraded == 1 ? '#ffaa00' : '#333'}; color:${u.is_upgraded == 1 ? 'black' : 'gray'}; pointer-events:none;">
+                            ${u.is_upgraded == 1 ? 'ELITE 💎' : 'REGULAR'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn-approve" style="padding:6px 10px; font-size:0.65rem;" 
+                            onclick="event.stopPropagation(); viewUserDetail('${u.phone}')">
+                            Manage Account
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) { console.error("Users load failed", e); }
+}
+
+function autoFillReason() {
+    const cat = document.getElementById('violationCategory').value;
+    const reasonBox = document.getElementById('actionReason');
+    const reasons = {
+        'scraping': "Violation of Section 5: Usage of automated scrapers, web spiders, or DoS scripts against PolySoko network interfaces.",
+        'exploit': "Violation of Section 5: Intentional exploitation of software vulnerabilities or negative balance anomalies.",
+        'reverse': "Violation of Section 5: Attempting to reverse-engineer backend API routes or exploit testing pathways.",
+        'age': "Violation of Section 1: Failure to meet the mandatory age requirement of 18+ for platform eligibility.",
+        'multi': "Violation of Section 1: Abuse of account responsibility and platform framework rules."
+    };
+    if(reasons[cat]) {
+        reasonBox.value = reasons[cat];
+    }
+}
+
+window.openUpgradeModal = function(phone) {
+    const modal = document.getElementById('adminUpgradeModal');
+    const message = document.getElementById('upgradeModalMessage');
+    const confirmBtn = document.getElementById('confirmUpgradeBtn');
+
+    message.innerText = `Upgrade user ${phone} to ELITE status? This will send a congratulations email with their invite code.`;
+    modal.style.display = 'flex';
+    confirmBtn.disabled = false;
+    confirmBtn.innerText = 'Upgrade User';
+
+    confirmBtn.onclick = async () => {
+        confirmBtn.disabled = true;
+        confirmBtn.innerText = 'Upgrading...';
+        try {
+            const res = await API.post('/admin/users/manage', { phone, action: 'upgrade', reason: 'Manual Admin Promotion' });
+            if (res.success) {
+                modal.style.display = 'none';
+                loadAdminUsers();
+                alert('User has been upgraded and notified.');
+            } else {
+                throw new Error(res.message || 'Upgrade failed');
+            }
+        } catch (e) {
+            alert('Upgrade failed: ' + e.message);
+            confirmBtn.disabled = false;
+            confirmBtn.innerText = 'Upgrade User';
+        }
+    };
+};
+
+async function handleUserAction(phone, action) {
+    const modal = document.getElementById('adminActionModal');
+    const title = document.getElementById('actionModalTitle');
+    const userText = document.getElementById('actionModalUser');
+    const reasonInput = document.getElementById('actionReason');
+    const confirmBtn = document.getElementById('confirmActionBtn');
+    const delWarning = document.getElementById('deleteWarning');
+
+    if (action === 'upgrade') {
+        openUpgradeModal(phone);
+        return;
+    }
+
+    title.innerText = `Confirm ${action.toUpperCase()}`;
+    userText.innerText = `Performing action on account: ${phone}`;
+    reasonInput.value = '';
+    delWarning.style.display = action === 'delete' ? 'block' : 'none';
+    modal.style.display = 'flex';
+
+    confirmBtn.onclick = async () => {
+        const reason = reasonInput.value.trim();
+        const violation = document.getElementById('violationCategory').value;
+        if (!reason) return alert("A reason is required for security tracking.");
+        if (action === 'suspend' && !violation) return alert("Please select a violation category before suspending.");
+
+        try {
+            confirmBtn.disabled = true;
+            confirmBtn.innerText = "Processing...";
+            const res = await API.post('/admin/users/manage', { phone, action, reason, violation });
+            if (res.success) {
+                modal.style.display = 'none';
+                loadAdminUsers();
+            } else {
+                alert(res.message || "Action failed");
+            }
+        } catch (e) { alert("Action failed: " + e.message); }
+        finally {
+            confirmBtn.disabled = false;
+            confirmBtn.innerText = "Confirm & Email";
+        }
+    };
+}
+
+function handleUserRowClick(event, phone) {
+    // Don't trigger modal if a button inside the row was clicked
+    if (event.target.closest('button')) return;
+    viewUserDetail(phone);
+}
+
+async function viewUserDetail(phone) {
+    try {
+        const res = await API.get(`/admin/users/${phone}/details`);
+        if (res.success) {
+            const { user, stats } = res;
+            const suspensionMessage = user.is_suspended == 1
+                ? `Suspended until: ${new Date(user.suspension_expires || Date.now()).toLocaleDateString()}`
+                : 'Active';
+            const membership = user.is_upgraded == 1
+                ? `Elite until ${new Date(user.upgrade_expiry || Date.now()).toLocaleDateString()}`
+                : 'Regular';
+            const content = `
+                <div style="text-align:center;">
+                    <button onclick="document.getElementById('adminUserDetailModal').style.display='none'" style="position:absolute; right:-10px; top:-10px; background:#333; border:none; color:white; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:1rem; z-index:10;">×</button>
+                    <div style="width:60px; height:60px; background:var(--mu-red); border-radius:50%; margin:0 auto 15px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; font-weight:bold; color:white;">${user.name?.[0] || 'U'}</div>
+                    <h2 style="margin:0; color:white; font-size: 1.4rem;">${user.name || 'User'}</h2>
+                    <p style="color:gray; font-size:0.85rem; margin-top:5px;">
+                        <a href="tel:${user.phone}" style="color:inherit; text-decoration:none;">${user.phone}</a> • 
+                        <a href="mailto:${user.email}" style="color:inherit; text-decoration:none;">${user.email || 'No Email'}</a>
+                    </p>
+                    <p style="color:#00ff88; font-size:0.85rem; margin:10px 0 0;">Invite Code: <b>${user.referral_code || 'N/A'}</b></p>
+                    
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:25px;">
+                        <div style="background:#000; padding:15px; border-radius:10px; border:1px solid #222;">
+                            <small style="color:gray; display:block; margin-bottom:5px;">BALANCE</small>
+                            <b style="color:var(--yes); font-size:1.1rem;">${parseFloat(user.balance).toFixed(2)}</b>
+                        </div>
+                        <div style="background:#000; padding:15px; border-radius:10px; border:1px solid #222;">
+                            <small style="color:gray; display:block; margin-bottom:5px;">STATUS</small>
+                            <b style="color:white; font-size:1.1rem;">${suspensionMessage}</b>
+                        </div>
+                        <div style="background:#000; padding:15px; border-radius:10px; border:1px solid #222;">
+                            <small style="color:gray; display:block; margin-bottom:5px;">PACKAGE</small>
+                            <b style="color:white; font-size:1.1rem;">${membership}</b>
+                        </div>
+                        <div style="background:#000; padding:15px; border-radius:10px; border:1px solid #222;">
+                            <small style="color:gray; display:block; margin-bottom:5px;">WITHDRAWALS</small>
+                            <b style="color:var(--no); font-size:1.1rem;">${parseFloat(stats.withdrawals || 0).toFixed(0)}</b>
+                        </div>
+                        <div style="background:#000; padding:15px; border-radius:10px; border:1px solid #222; grid-column:1/-1;">
+                            <small style="color:gray; display:block; margin-bottom:5px;">TOTAL BETS</small>
+                            <b style="color:white; font-size:1.1rem;">${stats.totalBets}</b>
+                        </div>
+                    </div>
+
+                    <div style="border-top: 1px solid #333; margin-top: 20px; padding-top: 20px;">
+                        <h4 style="color:#888; font-size:0.7rem; text-transform:uppercase; margin-bottom:12px; text-align:left;">Administrative Actions</h4>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                            <button onclick="handleUserAction('${user.phone}', '${user.is_suspended == 1 ? 'unsuspend' : 'suspend'}')" style="background:#222; border:1px solid #444; color:white; padding:10px; border-radius:8px; font-size:0.75rem; cursor:pointer;">${user.is_suspended == 1 ? '🟢 Unsuspend' : '🔴 Suspend'}</button>
+                            ${user.is_upgraded == 1 ? `<button onclick="handleUserAction('${user.phone}', 'revoke')" style="background:#ffaa00; border:none; color:black; padding:10px; border-radius:8px; font-size:0.75rem; cursor:pointer; font-weight:bold;">Revoke Elite</button>` : `<button onclick="openUpgradeModal('${user.phone}')" style="background:#00ff88; border:none; color:black; padding:10px; border-radius:8px; font-size:0.75rem; cursor:pointer; font-weight:bold;">Upgrade Elite</button>`}
+                            <button onclick="handleUserAction('${user.phone}', 'delete')" style="background:rgba(255,68,68,0.1); border:1px solid #ff4444; color:#ff4444; padding:10px; border-radius:8px; font-size:0.75rem; cursor:pointer; grid-column: 1 / -1;">Permanently Delete Account</button>
+                        </div>
+                    </div>
+                    <button onclick="document.getElementById('adminUserDetailModal').style.display='none'" style="width:100%; background:#333; border:none; color:white; padding:12px; border-radius:10px; cursor:pointer; margin-top:15px; font-weight:bold;">Close Details</button>
+                </div>
+            `;
+            document.getElementById('userDetailContent').innerHTML = content;
+            document.getElementById('adminUserDetailModal').style.display = 'flex';
+        }
+    } catch (e) { alert("Could not fetch user details"); }
+}
+
+/* ================= MARKETS ================= */
+async function publishMarket() {
+    const title = document.getElementById('mTitle').value;
+    const expiry = document.getElementById('mExpiry').value;
+    const category = document.getElementById('mCategory').value;
+    const sideA = document.getElementById('mSideA').value.trim() || 'YES';
+    const sideB = document.getElementById('mSideB').value.trim() || 'NO';
+    const mediaUrl = document.getElementById('mMediaUrl')?.value?.trim() || null;
+    const mediaType = document.getElementById('mMediaType')?.value || 'auto';
+    const content = document.getElementById('mDescription')?.value?.trim() || "";
+
+    if (!title || !expiry) {
+        return alert("⚠️ Required fields missing");
+    }
+
+    try {
+        await API.post('/admin/create-market', {
+            title,
+            category,
+            startTime: expiry,
+            media_url: mediaUrl,
+            media_type: mediaType,
+            content,
+            sideA,
+            sideB
+        });
+
+        alert("🚀 Market LIVE");
+        clearMarketForm();
+        loadAdminMarkets();
+
+    } catch {
+        alert("Failed to create market");
+    }
+}
+
+async function loadAdminMarkets() {
+    const filter = document.getElementById('adminCategoryFilter').value;
+    const container = document.getElementById('adminMarketList');
+
+    container.innerHTML = "Loading...";
+
+    try {
+        const res = await API.get('/admin/all-markets');
+
+        let markets = res.markets || [];
+        if (filter !== 'all') {
+            markets = markets.filter(m => m.category === filter);
+        }
+
+        if (!markets.length) {
+            container.innerHTML = `<p style="text-align:center;color:#71767b;">No markets found</p>`;
+            return;
+        }
+
+        container.innerHTML = markets.map(m => `
+            <div id="market-card-${m.id}" style="background:#000;padding:20px;border-radius:12px;margin-bottom:15px;border-left:5px solid ${m.status === 'open' ? 'var(--yes)' : 'gray'};">
+                
+                <div style="display:flex;justify-content:space-between;margin-bottom:15px; align-items:center;">
+                    <span style="font-size:0.7rem; color:gray; font-family:monospace;">ID: ${m.id} | Status: ${m.status.toUpperCase()}</span>
+                    <button onclick="deleteMarket('${m.id}')" style="background:none; border:none; cursor:pointer; font-size:1.1rem; opacity:0.6;">🗑️</button>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:0.6rem; color:gray; text-transform:uppercase; letter-spacing:1px;">Question</label>
+                    <input id="edit-title-${m.id}" value="${m.title || ''}" style="width:100%; padding:12px; background:#111; border:1px solid #333; color:white; border-radius:8px; margin-top:4px; font-weight:bold;">
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:0.6rem; color:gray; text-transform:uppercase; letter-spacing:1px;">Description / Context</label>
+                    <textarea id="edit-content-${m.id}" style="width:100%; padding:12px; background:#111; border:1px solid #333; color:white; border-radius:8px; margin-top:4px; height:80px; resize:none;">${m.content || m.description || ''}</textarea>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 140px; gap:10px; margin-bottom:15px;">
+                    <div>
+                        <label style="font-size:0.6rem; color:gray; text-transform:uppercase; letter-spacing:1px;">Media URL</label>
+                        <input id="edit-media-${m.id}" value="${m.media_url || ''}" placeholder="URL" style="width:100%; padding:12px; background:#111; border:1px solid #333; color:white; border-radius:8px; margin-top:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.6rem; color:gray; text-transform:uppercase; letter-spacing:1px;">Type</label>
+                        <select id="edit-media-type-${m.id}" style="width:100%; padding:12px; background:#111; border:1px solid #333; color:white; border-radius:8px; margin-top:4px;">
+                            <option value="auto" ${!m.media_type || m.media_type === 'auto' ? 'selected' : ''}>Auto Detect</option>
+                            <option value="image" ${m.media_type === 'image' ? 'selected' : ''}>Image</option>
+                            <option value="video" ${m.media_type === 'video' ? 'selected' : ''}>Video</option>
+                            <option value="youtube" ${m.media_type === 'youtube' ? 'selected' : ''}>YouTube</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="saveMarketChange('${m.id}', this)" class="btn-primary" style="width:100%; margin-bottom:20px;">💾 Save Changes</button>
+
+                <div style="margin-top:15px; border-top:1px solid #222; padding-top:15px;">
+                    <label style="font-size:0.7rem; color:#888; display:block; margin-bottom:5px;">⚖️ SETTLE MARKET (YES/NO)</label>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <input id="settle-result-${m.id}" placeholder="Outcome (e.g. YES)" style="flex:1; padding:12px; background:#111; border:1px solid #333; color:white; border-radius:8px;">
+                        <button onclick="adminSettleMarket('${m.id}', this)" class="btn-approve" style="padding:12px 20px;">Settle Market</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        container.innerHTML = `<p style="color:red;">Failed to load markets</p>`;
+    }
+}
+
+async function deleteMarket(id) {
+    if (!confirm("Delete market?")) return;
+
+    try {
+        await API.post('/admin/delete-market', { id });
+        loadAdminMarkets();
+    } catch {
+        alert("Delete failed");
+    }
+}
+
+async function saveMarketChange(id, btn) {
+    btn.innerText = "Saving...";
+    btn.disabled = true;
+
+    try {
+        await API.post('/admin/update-market', {
+            id,
+            title: document.getElementById(`edit-title-${id}`).value,
+            content: document.getElementById(`edit-content-${id}`).value,
+            media_url: document.getElementById(`edit-media-${id}`).value,
+            media_type: document.getElementById(`edit-media-type-${id}`).value
+        });
+
+        btn.innerText = "✅ Saved";
+    } catch {
+        btn.innerText = "❌ Error";
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function adminSettleMarket(marketId, btn) {
+    const result = document.getElementById(`settle-result-${marketId}`).value.trim().toUpperCase();
+    if (!result) {
+        return alert("Please enter a valid result outcome");
+    }
+    if (!confirm(`Settle market ${marketId} as ${result}? This will payout winners.`)) return;
+
+    btn.innerText = "Settling...";
+    btn.disabled = true;
+    try {
+        await API.post('/admin/settle', { marketId, result });
+        alert("Market settled successfully!");
+        loadAdminMarkets();
+    } catch (err) {
+        alert("Settlement failed: " + err.message);
+        btn.innerText = "Settle";
+        btn.disabled = false;
+    }
+}
+
+/* ================= BETS ================= */
+async function loadGlobalActiveBets() {
+    const table = document.getElementById('globalBetsTable');
+    table.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+
+    try {
+        const res = await API.get('/admin/all-active-bets');
+        const bets = res.bets || [];
+
+        table.innerHTML = bets.length
+            ? bets.map(b => `
+                <tr>
+                    <td>#${b.id}</td>
+                    <td>${b.userName}</td>
+                    <td>${b.marketTitle}</td>
+                    <td>${b.amount} sKES</td>
+                    <td>${b.side}</td>
+                    <td>${b.status}</td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="6">No bets</td></tr>';
+
+    } catch {
+        table.innerHTML = '<tr><td colspan="6">Error</td></tr>';
+    }
+}
+
+/* ================= UI ================= */
+// Namespaced admin sidebar toggle to avoid colliding with main site toggleSidebar
+
+function clearMarketForm() {
+    document.getElementById('mTitle').value = '';
+    document.getElementById('mCategory').value = 'football';
+    document.getElementById('mExpiry').value = '';
+    document.getElementById('mDescription').value = '';
+    document.getElementById('mSideA').value = 'YES';
+    document.getElementById('mSideB').value = 'NO';
+}
+
+/* ================= AUTH ================= */
+window.adminLogout = function() {
+    localStorage.clear();
+    location.href = "/login.html?redirect=admin.html";
+};
+
+/* ================= AUTO REFRESH ================= */
+setInterval(loadTransactions, 30000);
+
+// SuperAdmin profile populate & edit
+(async function(){
+    try {
+        const profileRes = await fetch(adminApiUrl('/api/profile'), {
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        const data = await profileRes.json();
+        if (data && data.user) {
+            const u = data.user;
+            const avatarUrl = adminAssetUrl(u.avatar_url || u.avatar);
+            document.getElementById('superName').innerText = u.name || 'SuperAdmin';
+            document.getElementById('superPhone').innerText = u.phone || '';
+            document.getElementById('superEmail').innerText = u.email || 'No email set';
+            const avatarImg = document.getElementById('superAdminAvatar');
+            if (avatarImg) {
+                avatarImg.src = avatarUrl;
+                avatarImg.onerror = function() { this.onerror = null; this.src = adminAssetUrl('/uploads/avatars/default.png'); };
+            }
+        }
+    } catch(e) { console.warn('Could not load superadmin profile', e); }
+})();
+
+</script>
+</body>
+</html>

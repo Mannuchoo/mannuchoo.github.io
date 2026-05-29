@@ -1,0 +1,10 @@
+{
+  "name": "polysoko-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install": "npm install --prefix server",
+    "start": "npm --prefix server start",
+    "dev": "npm --prefix server run dev"
+  }
+}
