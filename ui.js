@@ -23,6 +23,19 @@ function normalizeCategory(cat) {
     return cat.toString().toLowerCase().trim();
 }
 
+function isInvalidSportsMarket(m) {
+    const cat = normalizeCategory(m?.category);
+    const isSportsMarket = cat === "sports" || cat === "football" || m?.id?.startsWith("sp_") || m?.id?.startsWith("fb_");
+    if (!isSportsMarket) return false;
+    const title = String(m?.title || "").toLowerCase().trim();
+    const sideA = String(m?.sideA || "").toLowerCase().trim();
+    const sideB = String(m?.sideB || "").toLowerCase().trim();
+    return !title ||
+        ["home vs away", "unknown vs unknown"].includes(title) ||
+        ["home", "away", "unknown", ""].includes(sideA) ||
+        ["home", "away", "unknown", ""].includes(sideB);
+}
+
 window.setCategory = function (category) {
     if (!window.state) {
         console.warn("state not ready yet");
@@ -64,7 +77,7 @@ window.setSportsType = function (sport) {
 };
 
 function applyStateAndRender() {
-    let filtered = state.allMarkets || [];
+    let filtered = (state.allMarkets || []).filter(m => !isInvalidSportsMarket(m));
     const active = state.category || "all";
     
     if (active !== "all") {
@@ -227,7 +240,7 @@ function renderFilteredMarkets() {
     const mainGrid = document.getElementById("marketsList");
     if (!mainGrid) return;
 
-    const allMarkets = (state.filteredMarkets || []);
+    const allMarkets = (state.filteredMarkets || []).filter(m => !isInvalidSportsMarket(m));
 
     if (state.category === "sports") {
         renderSportsPage(mainGrid, allMarkets);
@@ -295,10 +308,7 @@ function renderSportsPage(container, sportsMarkets) {
     const sportsCatalog = ["Football", "NFL", "NPL", "Basketball", "Hockey", "Baseball", "Volleyball", "Rugby", "Handball"];
     const source = (sportsMarkets || [])
         .filter(m => normalizeCategory(m.category) === "sports" || normalizeCategory(m.category) === "football" || m.id?.startsWith("sp_") || m.id?.startsWith("fb_"))
-        .filter(m => {
-            const title = String(m.title || "").toLowerCase();
-            return title && !["home vs away", "unknown vs unknown"].includes(title);
-        });
+        .filter(m => !isInvalidSportsMarket(m));
     const selected = normalizeCategory(state.sportsType || "");
     const sportLabelFor = (m) => normalizeCategory(m.category) === "football" || m.id?.startsWith("fb_") ? "Football" : (m.country || m.sport || "Other");
     const sportNames = [...new Set([...sportsCatalog, ...source.map(sportLabelFor)])]

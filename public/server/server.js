@@ -496,6 +496,16 @@ const upload = multer({
     }
 });
 
+function handleAvatarUpload(req, res, next) {
+    upload.single('avatar')(req, res, (err) => {
+        if (!err) return next();
+        const message = err.code === 'LIMIT_FILE_SIZE'
+            ? "Profile picture must be 5MB or smaller"
+            : (err.message || "Avatar upload failed");
+        return res.status(400).json({ success: false, message });
+    });
+}
+
 function publicAssetUrl(req, assetPath) {
     if (!assetPath) return null;
     if (/^https?:\/\//i.test(assetPath)) return assetPath;
@@ -508,7 +518,11 @@ function publicAssetUrl(req, assetPath) {
 }
 
 function publicSiteUrl() {
-    return (process.env.PUBLIC_SITE_URL || process.env.APP_URL || 'https://polysoko.online').replace(/\/+$/, '');
+    const candidate = (process.env.PUBLIC_SITE_URL || process.env.APP_URL || '').replace(/\/+$/, '');
+    if (candidate && !/ngrok|localhost|127\.0\.0\.1/i.test(candidate)) {
+        return candidate;
+    }
+    return 'https://polysoko.online';
 }
 
 // --- DB SCHEMA & AUTO-MIGRATION ---
@@ -2055,6 +2069,16 @@ app.get('/api/markets/preview', async (req, res) => {
         const rows = await dbAll(
             `SELECT * FROM markets
              WHERE status IN ('open', 'upcoming', 'live')
+               AND NOT (
+                    (category='sports' OR category='football' OR id LIKE 'sp_%' OR id LIKE 'fb_%')
+                    AND (
+                        title IN ('Home vs Away', 'Unknown vs Unknown')
+                        OR sideA IN ('Home', 'Away', 'Unknown', '')
+                        OR sideB IN ('Home', 'Away', 'Unknown', '')
+                        OR sideA IS NULL
+                        OR sideB IS NULL
+                    )
+               )
              ORDER BY
                 CASE WHEN status='live' THEN 0 ELSE 1 END,
                 COALESCE(is_boosted, 0) DESC,
@@ -2095,6 +2119,11 @@ app.get('/api/sports/categories', async (req, res) => {
              FROM markets
              WHERE (category='sports' OR category='football' OR id LIKE 'sp_%' OR id LIKE 'fb_%')
                AND status IN ('open', 'upcoming', 'live')
+               AND title NOT IN ('Home vs Away', 'Unknown vs Unknown')
+               AND sideA NOT IN ('Home', 'Away', 'Unknown', '')
+               AND sideB NOT IN ('Home', 'Away', 'Unknown', '')
+               AND sideA IS NOT NULL
+               AND sideB IS NOT NULL
              GROUP BY
                 CASE
                     WHEN category='football' OR id LIKE 'fb_%' THEN 'Football'
@@ -3136,7 +3165,7 @@ app.post('/api/admin/settle-backlog', authenticateAdmin, async (req, res) => {
     }
 });
 
-app.post('/api/update-avatar', authenticate, upload.single('avatar'), (req, res) => {
+app.post('/api/update-avatar', authenticate, handleAvatarUpload, (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
     db.get(`SELECT avatar_url FROM users WHERE phone = ?`, [req.user.phone], (err, user) => {

@@ -1041,7 +1041,14 @@ function initAvatarUpload() {
                 body: formData
             });
 
-            const data = await res.json();
+            const text = await res.text();
+            let data = {};
+            try {
+                data = text ? JSON.parse(text) : {};
+            } catch (parseErr) {
+                console.error("Avatar upload returned non-JSON:", text.slice(0, 160));
+                data = { success: false, message: "Avatar upload failed. Please try a smaller image." };
+            }
 
             if (!res.ok || !data.success) {
                 console.error("Avatar upload failed:", data.message || data);
@@ -1216,13 +1223,27 @@ function activateModules() {
         sidebarWrapper.classList.remove("active");
         overlay.classList.remove("active");
     };
-    // Removed sidebar category filter listeners per request.
-  
-    const profileBtn = document.getElementById("profileBtn"); // FIXED HERE
+    sidebar.querySelectorAll(".tab-btn[data-cat]").forEach((btn) => {
+        btn.onclick = () => {
+            const category = btn.dataset.cat || "all";
+            if (typeof window.setCategory === "function") {
+                window.setCategory(category);
+            }
+            sidebar.querySelectorAll(".tab-btn[data-cat]").forEach((item) => {
+                item.classList.toggle("active", item === btn);
+            });
+            sidebarWrapper.classList.remove("active");
+            overlay.classList.remove("active");
+        };
+    });
+
+    const profileBtn = document.getElementById("profileBtn") || document.getElementById("myProfileBtn");
 
     if (profileBtn) {
         profileBtn.onclick = () => {
             toggleAccountCenter?.();
+            sidebarWrapper.classList.remove("active");
+            overlay.classList.remove("active");
         };
     }
 
