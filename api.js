@@ -217,17 +217,20 @@ async function fetchProfile() {
             document.getElementById("headerAvatar").onerror = function() { this.onerror = null; this.src = fallbackAvatarUrl; };
         }
         if (u.avatar_url && !/\/uploads\/avatars\/default\.png$/i.test(u.avatar_url)) {
+            localStorage.setItem('saved_avatar_path', u.avatar_url);
             localStorage.setItem('saved_avatar_url', avatarUrl);
         } else {
+            localStorage.removeItem('saved_avatar_path');
             localStorage.removeItem('saved_avatar_url');
         }
     }
 }
 
 function restoreSavedAvatar() {
-    const avatarUrl = localStorage.getItem('saved_avatar_url');
-    if (!avatarUrl) return;
-    const normalized = avatarAssetUrl(avatarUrl);
+    const savedPath = localStorage.getItem('saved_avatar_path');
+    const savedUrl = localStorage.getItem('saved_avatar_url');
+    if (!savedPath && !savedUrl) return;
+    const normalized = avatarAssetUrl(savedPath || savedUrl);
     if (document.getElementById("userAvatar")) document.getElementById("userAvatar").src = normalized;
     if (document.getElementById("headerAvatar")) document.getElementById("headerAvatar").src = normalized;
 }

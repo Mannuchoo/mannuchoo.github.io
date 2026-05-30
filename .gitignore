@@ -5,6 +5,8 @@
 !admin.html
 !api.js
 !app.js
+!pwa.js
+!sw.js
 !index.html
 !404.html
 !login.html

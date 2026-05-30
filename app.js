@@ -1009,6 +1009,14 @@ function initAvatarUpload() {
     input.onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        if (!file.type || !file.type.startsWith("image/")) {
+            input.value = "";
+            return alert("Please choose an image file.");
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            input.value = "";
+            return alert("Profile picture must be 5MB or smaller.");
+        }
 
         selectedAvatarFile = file;
 
@@ -1055,13 +1063,15 @@ function initAvatarUpload() {
                 return alert(data.message || "Avatar upload failed");
             }
 
-            const rawAvatarUrl = data.avatarUrl || data.url || data.avatarPath;
+            const rawAvatarPath = data.avatarPath || data.avatar_url || data.path;
+            const rawAvatarUrl = rawAvatarPath || data.avatarUrl || data.url;
             const avatarUrl = window.avatarAssetUrl
                 ? window.avatarAssetUrl(rawAvatarUrl)
                 : (window.assetUrl ? window.assetUrl(rawAvatarUrl) : rawAvatarUrl);
             avatar.src = avatarUrl;
             const headerAvatar = document.getElementById("headerAvatar");
             if (headerAvatar && avatarUrl) headerAvatar.src = avatarUrl;
+            if (rawAvatarPath) localStorage.setItem('saved_avatar_path', rawAvatarPath);
             if (avatarUrl) localStorage.setItem('saved_avatar_url', avatarUrl);
             selectedAvatarFile = null;
             input.value = "";
@@ -1118,11 +1128,10 @@ function activateModules() {
     if (header && !document.getElementById('headerSearch')) {
         const searchWrap = document.createElement('div');
         searchWrap.className = 'header-search-wrap';
-        searchWrap.style = 'position: relative; display: flex; align-items: center; overflow: visible;';
+        searchWrap.setAttribute('aria-expanded', 'false');
         searchWrap.innerHTML = `
             <button id="searchToggle" style="background:none; border:none; color:white; font-size:1.2rem; cursor:pointer; padding:5px;">🔍</button>
-            <input type="text" id="headerSearch" placeholder="Search..." oninput="window.handleGlobalSearch(this.value)" 
-                   style="width:0; opacity:0; transition: all 0.3s ease; background:#111; border:1px solid #333; color:white; border-radius:20px; padding:0; font-size:0.8rem; overflow:hidden; position:absolute; right:45px; z-index: 10;">
+            <input type="search" id="headerSearch" placeholder="Search markets" autocomplete="off" aria-label="Search markets">
         `;
         header.insertBefore(searchWrap, document.querySelector('.header-right') || header.lastChild);
 
@@ -1139,33 +1148,58 @@ function activateModules() {
 
         const token = localStorage.getItem("token");
 
-        document.getElementById('searchToggle').onclick = () => {
-            const input = document.getElementById('headerSearch');
-            const isHidden = input.offsetWidth === 0;
-            input.style.width = isHidden ? '130px' : '0';
-            input.style.opacity = isHidden ? '1' : '0';
-            input.style.padding = isHidden ? '6px 12px' : '0';
-            if (isHidden) input.focus();
+        const searchToggle = document.getElementById('searchToggle');
+        const searchInput = document.getElementById('headerSearch');
+        searchToggle.className = 'header-icon-btn';
+        searchToggle.type = 'button';
+        searchToggle.setAttribute('aria-label', 'Search markets');
+        searchToggle.setAttribute('title', 'Search markets');
+        searchToggle.textContent = '🔍';
+        searchToggle.onclick = () => {
+            const expanded = searchWrap.classList.toggle('active');
+            searchWrap.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            if (expanded) {
+                searchInput.focus();
+            } else {
+                searchInput.value = '';
+                window.handleGlobalSearch('');
+            }
+        };
+        searchInput.oninput = () => window.handleGlobalSearch(searchInput.value);
+        searchInput.onkeydown = (e) => {
+            if (e.key === 'Escape') {
+                searchWrap.classList.remove('active');
+                searchWrap.setAttribute('aria-expanded', 'false');
+                searchInput.value = '';
+                window.handleGlobalSearch('');
+            }
         };
 
         // Assistant chat UI (small toggle + chat box) placed below the search
         if (token && !document.getElementById('assistantToggle')) {
             const assistWrap = document.createElement('div');
-            assistWrap.style = 'position:relative; margin-left:8px;';
+            assistWrap.className = 'assistant-chat-wrap';
             assistWrap.innerHTML = `
-                <button id="assistantToggle" style="background:#00d1ff; border:none; color:black; padding:6px 10px; border-radius:14px; cursor:pointer; font-size:1.1rem;">💬</button>
-                <div id="assistantBox" style="display:none; position:absolute; right:0; top:40px; width:320px; background:#0b0b0d; border:1px solid #222; padding:10px; border-radius:10px; z-index:10010; color:#ddd;">
-                    <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
-                        <select id="assistantEngine" style="flex:1; padding:6px; background:#111; color:#fff; border:1px solid #222; border-radius:6px;">
+                <button id="assistantToggle" class="header-icon-btn assistant-toggle" type="button" aria-label="Open chat" title="Open chat">💬</button>
+                <div id="assistantBox" class="assistant-panel" aria-live="polite">
+                    <div class="assistant-head">
+                        <div>
+                            <strong>PolySoko Chat</strong>
+                            <span>Fast help for markets, bets, and account issues</span>
+                        </div>
+                        <button id="assistantClose" class="assistant-mini-btn" type="button" aria-label="Close chat">Close</button>
+                    </div>
+                    <div class="assistant-tools">
+                        <select id="assistantEngine" aria-label="AI engine">
                             <option value="gpt">GPT</option>
                             <option value="gemini">Gemini</option>
                         </select>
-                        <button id="assistantClear" style="background:#333; border:none; color:#fff; padding:6px 8px; border-radius:6px;">Clear</button>
+                        <button id="assistantClear" class="assistant-mini-btn" type="button">Clear</button>
                     </div>
-                    <div id="assistantMessages" style="height:160px; overflow:auto; background:#050507; padding:8px; border-radius:6px; border:1px solid #111; font-size:0.85rem; margin-bottom:8px;"></div>
-                    <div style="display:flex; gap:8px;">
-                        <input id="assistantInput" placeholder="Ask the assistant..." style="flex:1; padding:8px; border-radius:8px; background:#111; color:#fff; border:1px solid #222;">
-                        <button id="assistantSend" style="background:#00d1ff; border:none; color:black; padding:8px 10px; border-radius:8px;">Send</button>
+                    <div id="assistantMessages" class="assistant-messages"></div>
+                    <div class="assistant-composer">
+                        <textarea id="assistantInput" placeholder="Type your question..." rows="1"></textarea>
+                        <button id="assistantSend" type="button">Send</button>
                     </div>
                 </div>
             `;
@@ -1174,36 +1208,98 @@ function activateModules() {
             document.getElementById('assistantToggle').onclick = () => {
                 const box = document.getElementById('assistantBox');
                 if (!box) return;
-                box.style.display = box.style.display === 'none' ? 'block' : 'none';
+                box.classList.toggle('active');
+                if (box.classList.contains('active')) document.getElementById('assistantInput')?.focus();
+            };
+            document.getElementById('assistantClose').onclick = () => {
+                document.getElementById('assistantBox')?.classList.remove('active');
             };
 
-            document.getElementById('assistantSend').onclick = async () => {
+            const chatStorageKey = 'polysoko_chat_history_v1';
+            const readChatHistory = () => {
+                try {
+                    const saved = JSON.parse(localStorage.getItem(chatStorageKey) || '[]');
+                    return Array.isArray(saved) ? saved.slice(-20) : [];
+                } catch {
+                    return [];
+                }
+            };
+            const writeChatHistory = (items) => {
+                localStorage.setItem(chatStorageKey, JSON.stringify((items || []).slice(-20)));
+            };
+            const addAssistantMessage = (role, text, extraClass = '') => {
+                const messagesEl = document.getElementById('assistantMessages');
+                if (!messagesEl) return null;
+                const row = document.createElement('div');
+                row.className = `assistant-msg assistant-msg-${role} ${extraClass}`.trim();
+                row.textContent = text;
+                messagesEl.appendChild(row);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+                return row;
+            };
+            const renderChatHistory = () => {
+                const messagesEl = document.getElementById('assistantMessages');
+                if (!messagesEl) return;
+                messagesEl.innerHTML = '';
+                const history = readChatHistory();
+                if (!history.length) {
+                    addAssistantMessage('bot', 'Hi. Ask about a market, your balance, deposits, withdrawals, or a bet that needs settlement.');
+                    return;
+                }
+                history.forEach(item => addAssistantMessage(item.role === 'user' ? 'user' : 'bot', item.text || ''));
+            };
+            renderChatHistory();
+
+            const sendAssistantMessage = async () => {
                 const input = document.getElementById('assistantInput');
                 const messagesEl = document.getElementById('assistantMessages');
+                const sendBtn = document.getElementById('assistantSend');
                 const engine = document.getElementById('assistantEngine')?.value || 'gpt';
                 const text = (input.value || '').trim();
                 if (!text) return;
-                const userHtml = `<div style="color:#9ad; margin-bottom:6px;"><strong>You:</strong> ${window.escapeHtml ? window.escapeHtml(text) : text}</div>`;
-                messagesEl.insertAdjacentHTML('beforeend', userHtml);
+                const history = readChatHistory();
+                history.push({ role: 'user', text });
+                writeChatHistory(history);
+                addAssistantMessage('user', text);
                 input.value = '';
                 messagesEl.scrollTop = messagesEl.scrollHeight;
+                sendBtn.disabled = true;
+                sendBtn.textContent = '...';
+                const waiting = addAssistantMessage('bot', 'Checking...', 'assistant-waiting');
 
                 try {
-                    const res = await apiFetch('ai/chat', { method: 'POST', body: { message: text, engine } });
+                    const res = await apiFetch('ai/chat', { method: 'POST', body: { message: text, engine, history: history.slice(-8) } });
+                    waiting.remove();
                     if (res && res.success) {
-                        const replyHtml = `<div style="color:#cfc; margin-bottom:8px;"><strong>Assistant (${res.engine}):</strong> ${window.escapeHtml ? window.escapeHtml(res.reply || '') : res.reply}</div>`;
-                        messagesEl.insertAdjacentHTML('beforeend', replyHtml);
+                        const reply = res.reply || 'Done.';
+                        const latest = readChatHistory();
+                        latest.push({ role: 'bot', text: reply });
+                        writeChatHistory(latest);
+                        addAssistantMessage('bot', reply);
                         messagesEl.scrollTop = messagesEl.scrollHeight;
                     } else {
-                        messagesEl.insertAdjacentHTML('beforeend', `<div style="color:#f88; margin-bottom:6px;">Assistant failed: ${window.escapeHtml ? window.escapeHtml(res?.message || 'error') : 'error'}</div>`);
+                        addAssistantMessage('error', `Assistant failed: ${res?.message || 'error'}`);
                     }
                 } catch (e) {
-                    messagesEl.insertAdjacentHTML('beforeend', `<div style="color:#f88; margin-bottom:6px;">Assistant error: ${window.escapeHtml ? window.escapeHtml(e.message || e) : 'error'}</div>`);
+                    waiting.remove();
+                    addAssistantMessage('error', `Assistant error: ${e.message || 'error'}`);
+                } finally {
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = 'Send';
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                }
+            };
+            document.getElementById('assistantSend').onclick = sendAssistantMessage;
+            document.getElementById('assistantInput').onkeydown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendAssistantMessage();
                 }
             };
 
             document.getElementById('assistantClear').onclick = () => {
-                document.getElementById('assistantMessages').innerHTML = '';
+                writeChatHistory([]);
+                renderChatHistory();
             };
         }
     }

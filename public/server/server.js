@@ -553,7 +553,7 @@ db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_phone TEXT, type TEXT, amount REAL, 
         reference TEXT, market_id TEXT, side TEXT, status TEXT, potential_payout REAL, 
-        settled_amount REAL, odds REAL, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        settled_amount REAL, odds REAL, bet_id INTEGER, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
     db.run(`CREATE TABLE IF NOT EXISTS markets (
@@ -582,6 +582,8 @@ CREATE TABLE IF NOT EXISTS bets (
     amount REAL,
     odds REAL,
     status TEXT CHECK(status IN ('active','won','lost','cancelled')),
+    transaction_id INTEGER,
+    reference TEXT,
     category TEXT,
     commence_time TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -635,6 +637,7 @@ const addColumnSafely = (tableName, columnName, definition, callback) => {
     addColumnSafely('transactions', 'odds', 'REAL');
     addColumnSafely('transactions', 'settled_amount', 'REAL');
     addColumnSafely('transactions', 'potential_payout', 'REAL');
+    addColumnSafely('transactions', 'bet_id', 'INTEGER');
     addColumnSafely('users', 'verification_token', 'TEXT');
 addColumnSafely('transactions', 'mpesa_receipt', 'TEXT');
 addColumnSafely('transactions', 'internal_id', 'TEXT');
@@ -648,6 +651,8 @@ addColumnSafely('password_resets', 'otp', 'TEXT');
     addColumnSafely('markets', 'is_boosted', 'INTEGER DEFAULT 0');
     addColumnSafely('transactions', 'is_boosted', 'INTEGER DEFAULT 0');
     addColumnSafely('bets', 'is_boosted', 'INTEGER DEFAULT 0');
+    addColumnSafely('bets', 'transaction_id', 'INTEGER');
+    addColumnSafely('bets', 'reference', 'TEXT');
     setTimeout(() => {
         if (process.env.ADMIN_PHONE) {
             const adminPhone = normalizePhone(process.env.ADMIN_PHONE);
@@ -886,14 +891,70 @@ const processMatches = async (matches) => {
 };
 
 const SPORTS_SOURCES = [
-    { key: 'nfl', label: 'NFL', host: 'https://v1.american-football.api-sports.io/games' },
-    { key: 'basketball', label: 'Basketball', host: 'https://v1.basketball.api-sports.io/games' },
-    { key: 'baseball', label: 'Baseball', host: 'https://v1.baseball.api-sports.io/games' },
-    { key: 'hockey', label: 'Hockey', host: 'https://v1.hockey.api-sports.io/games' },
-    { key: 'volleyball', label: 'Volleyball', host: 'https://v1.volleyball.api-sports.io/games' },
-    { key: 'rugby', label: 'Rugby', host: 'https://v1.rugby.api-sports.io/games' },
-    { key: 'handball', label: 'Handball', host: 'https://v1.handball.api-sports.io/games' }
+    { key: 'nba', label: 'NBA', host: 'https://v2.nba.api-sports.io', path: '/games' },
+    { key: 'nfl', label: 'NFL', host: 'https://v1.american-football.api-sports.io', path: '/games' },
+    { key: 'basketball', label: 'Basketball', host: 'https://v1.basketball.api-sports.io', path: '/games' },
+    { key: 'baseball', label: 'Baseball', host: 'https://v1.baseball.api-sports.io', path: '/games' },
+    { key: 'hockey', label: 'Hockey', host: 'https://v1.hockey.api-sports.io', path: '/games' },
+    { key: 'volleyball', label: 'Volleyball', host: 'https://v1.volleyball.api-sports.io', path: '/games' },
+    { key: 'rugby', label: 'Rugby', host: 'https://v1.rugby.api-sports.io', path: '/games' },
+    { key: 'handball', label: 'Handball', host: 'https://v1.handball.api-sports.io', path: '/games' },
+    { key: 'afl', label: 'AFL', host: 'https://v1.afl.api-sports.io', path: '/games' }
 ];
+
+const sportsStatusCache = new Map();
+
+function parseEnabledSports() {
+    const configured = process.env.SPORTS_ENABLED_SOURCES || process.env.API_SPORTS_ENABLED_SOURCES || '';
+    return configured
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+function sportsUrl(sport, endpoint = sport.path) {
+    return `${sport.host}${endpoint}`;
+}
+
+function hasApiErrors(data) {
+    const errors = data?.errors;
+    if (!errors) return false;
+    if (Array.isArray(errors)) return errors.length > 0;
+    return Object.keys(errors).length > 0;
+}
+
+async function isSportsSourceAvailable(sport) {
+    const enabled = parseEnabledSports();
+    if (enabled.length && !enabled.includes(sport.key)) return false;
+
+    const cached = sportsStatusCache.get(sport.key);
+    if (cached && Date.now() - cached.checkedAt < 6 * 60 * 60 * 1000) {
+        return cached.available;
+    }
+
+    try {
+        const response = await axios.get(sportsUrl(sport, '/status'), {
+            headers: { 'x-apisports-key': API_SPORTS_KEY },
+            timeout: 10000
+        });
+        const available = response.status === 200 && !hasApiErrors(response.data);
+        const plan = response.data?.response?.subscription?.plan || 'unknown';
+        const requests = response.data?.response?.requests;
+        sportsStatusCache.set(sport.key, { available, checkedAt: Date.now(), plan, requests });
+        if (available) {
+            console.log(`${sport.label} API available on ${plan} plan.`);
+        } else {
+            console.warn(`${sport.label} API is not available for this key.`);
+        }
+        return available;
+    } catch (e) {
+        const status = e.response?.status;
+        const errors = e.response?.data?.errors || e.response?.data || e.message;
+        sportsStatusCache.set(sport.key, { available: false, checkedAt: Date.now(), plan: 'unavailable' });
+        console.warn(`${sport.label} API status check failed${status ? ` (${status})` : ''}:`, errors);
+        return false;
+    }
+}
 
 function getSportsGameId(game, sportKey) {
     return game?.game?.id || game?.id || game?.fixture?.id || game?.event?.id || `${sportKey}_${crypto.createHash('md5').update(JSON.stringify(game)).digest('hex').slice(0, 14)}`;
@@ -952,8 +1013,11 @@ const syncSportsMarkets = async () => {
 
     for (const sport of SPORTS_SOURCES) {
         try {
+            const available = await isSportsSourceAvailable(sport);
+            if (!available) continue;
+
             const responses = await Promise.all(dates.map((date) => (
-                axios.get(sport.host, {
+                axios.get(sportsUrl(sport), {
                     params: { date, timezone: 'Africa/Nairobi' },
                     headers: { 'x-apisports-key': API_SPORTS_KEY }
                 }).catch((e) => {
@@ -1145,7 +1209,7 @@ const syncSportsMarkets = async () => {
 
         // After syncing, push markets to connected clients
         emitMarkets();
-        return { success: true, settledBets: bets.length, totalStake, totalPayout };
+        return { success: true };
     };
 const normalizeStatus = (status) => {
     if (!status) return "upcoming";
@@ -1252,13 +1316,13 @@ const cancelMarket = async (marketId, reason = 'CANCELLED') => {
     console.log(`🛑 Cancelling market ${marketId} → ${reason}`);
     try {
         const market = await dbGet(`SELECT settled FROM markets WHERE id=?`, [marketId]);
-        if (market?.settled) return;
+        if (!market) return { success: false, message: "Market not found" };
+        if (market?.settled) return { success: true, alreadySettled: true };
 
         const bets = await dbAll(`
-            SELECT * FROM transactions
+            SELECT * FROM bets
             WHERE market_id = ?
-            AND type = 'bet'
-            AND status IN ('active','pending','open')
+            AND status = 'active'
         `, [marketId]);
 
         await dbRun("BEGIN TRANSACTION");
@@ -1268,10 +1332,21 @@ const cancelMarket = async (marketId, reason = 'CANCELLED') => {
             if (refund > 0) {
                 await dbRun(`UPDATE users SET balance = balance + ? WHERE phone = ?`, [refund, bet.user_phone]);
             }
-            await dbRun(`UPDATE transactions SET status='cancelled', settled_amount=? WHERE id=?`, [refund, bet.id]);
             await dbRun(
-                `UPDATE bets SET status='cancelled' WHERE market_id=? AND user_phone=? AND status IN ('active','pending','open')`,
-                [marketId, bet.user_phone]
+                `UPDATE transactions
+                 SET status='cancelled', settled_amount=?
+                 WHERE type='bet'
+                 AND status IN ('active','pending','open')
+                 AND (
+                    bet_id=?
+                    OR id=?
+                    OR (bet_id IS NULL AND market_id=? AND user_phone=? AND side=?)
+                 )`,
+                [refund, bet.id, bet.transaction_id || -1, marketId, bet.user_phone, bet.picked]
+            );
+            await dbRun(
+                `UPDATE bets SET status='cancelled' WHERE id=? AND status='active'`,
+                [bet.id]
             );
             emitBalance(bet.user_phone);
         }
@@ -1284,6 +1359,7 @@ const cancelMarket = async (marketId, reason = 'CANCELLED') => {
         await dbRun("COMMIT");
         emitMarkets();
         console.log(`✅ Market ${marketId} cancelled/refunded`);
+        return { success: true, cancelledBets: bets.length };
     } catch (e) {
         console.error("❌ Market cancel failed:", e.message);
         try { await dbRun("ROLLBACK"); } catch { /* ignore */ }
@@ -1338,10 +1414,9 @@ const settleMarket = async (marketId, winningSide) => {
 
         // 1. Get bets
         const bets = await dbAll(`
-            SELECT * FROM transactions
+            SELECT * FROM bets
             WHERE market_id = ?
-            AND type = 'bet'
-            AND status IN ('active','pending','open')
+            AND status = 'active'
         `, [marketId]);
 
         if (!bets.length) {
@@ -1362,7 +1437,7 @@ const settleMarket = async (marketId, winningSide) => {
         for (const bet of bets) {
             totalStake += Number(bet.amount || 0);
 
-            const isWinner = isWinningBetSide(bet.side, winningSide, market);
+            const isWinner = isWinningBetSide(bet.picked, winningSide, market);
 
             if (isWinner) {
                 const payout = Number((Number(bet.amount || 0) * Number(bet.odds || 1)).toFixed(2));
@@ -1374,30 +1449,42 @@ const settleMarket = async (marketId, winningSide) => {
                 );
 
                 await dbRun(
-                    `UPDATE transactions 
-                     SET status='won', settled_amount=? 
-                     WHERE id=?`,
-                    [payout, bet.id]
+                    `UPDATE transactions
+                     SET status='won', settled_amount=?
+                     WHERE type='bet'
+                     AND status IN ('active','pending','open')
+                     AND (
+                        bet_id=?
+                        OR id=?
+                        OR (bet_id IS NULL AND market_id=? AND user_phone=? AND side=?)
+                     )`,
+                    [payout, bet.id, bet.transaction_id || -1, marketId, bet.user_phone, bet.picked]
                 );
-                
+
                 await dbRun(
-                    `UPDATE bets SET status='won' WHERE market_id=? AND user_phone=? AND status IN ('active','pending','open')`,
-                    [marketId, bet.user_phone]
+                    `UPDATE bets SET status='won' WHERE id=? AND status='active'`,
+                    [bet.id]
                 );
 
                 emitBalance(bet.user_phone);
 
             } else {
                 await dbRun(
-                    `UPDATE transactions 
-                     SET status='lost', settled_amount=0 
-                     WHERE id=?`,
-                    [bet.id]
+                    `UPDATE transactions
+                     SET status='lost', settled_amount=0
+                     WHERE type='bet'
+                     AND status IN ('active','pending','open')
+                     AND (
+                        bet_id=?
+                        OR id=?
+                        OR (bet_id IS NULL AND market_id=? AND user_phone=? AND side=?)
+                     )`,
+                    [bet.id, bet.transaction_id || -1, marketId, bet.user_phone, bet.picked]
                 );
 
                 await dbRun(
-                    `UPDATE bets SET status='lost' WHERE market_id=? AND user_phone=? AND status IN ('active','pending','open')`,
-                    [marketId, bet.user_phone]
+                    `UPDATE bets SET status='lost' WHERE id=? AND status='active'`,
+                    [bet.id]
                 );
             }
         }
@@ -1415,10 +1502,89 @@ const settleMarket = async (marketId, winningSide) => {
         console.log(`✅ Market ${marketId} fully settled`);
 
         emitMarkets();
+        return { success: true, settledBets: bets.length, totalStake, totalPayout };
 
     } catch (e) {
         console.error("❌ Settlement failed:", e.message);
         try { await dbRun("ROLLBACK"); } catch { /* ignore */ }
+        throw e;
+    }
+};
+
+const cancelBetById = async (betId, reason = 'ADMIN_CANCELLED') => {
+    const bet = await dbGet(`SELECT * FROM bets WHERE id=?`, [betId]);
+    if (!bet) throw new Error("Bet not found");
+    if (bet.status !== 'active') return { success: true, alreadySettled: true };
+
+    const refund = Number(Number(bet.amount || 0).toFixed(2));
+    await dbRun("BEGIN TRANSACTION");
+    try {
+        if (refund > 0) {
+            await dbRun(`UPDATE users SET balance = balance + ? WHERE phone = ?`, [refund, bet.user_phone]);
+        }
+        await dbRun(`UPDATE bets SET status='cancelled' WHERE id=? AND status='active'`, [bet.id]);
+        await dbRun(
+            `UPDATE transactions
+             SET status='cancelled', settled_amount=?
+             WHERE type='bet'
+             AND status IN ('active','pending','open')
+             AND (
+                bet_id=?
+                OR id=?
+                OR (bet_id IS NULL AND market_id=? AND user_phone=? AND side=?)
+             )`,
+            [refund, bet.id, bet.transaction_id || -1, bet.market_id, bet.user_phone, bet.picked]
+        );
+        await dbRun("COMMIT");
+        emitBalance(bet.user_phone);
+        return { success: true, cancelledBets: 1, refunded: refund, reason };
+    } catch (e) {
+        await dbRun("ROLLBACK");
+        throw e;
+    }
+};
+
+const settleBetById = async (betId, winningSide) => {
+    const bet = await dbGet(`SELECT * FROM bets WHERE id=?`, [betId]);
+    if (!bet) throw new Error("Bet not found");
+    if (bet.status !== 'active') return { success: true, alreadySettled: true };
+
+    const market = await dbGet(`SELECT sideA, sideB FROM markets WHERE id=?`, [bet.market_id]) || {};
+    const outcome = normalizeSettlementSide(winningSide);
+    if (!outcome) throw new Error("Missing settlement result");
+    if (outcome === 'DRAW' || outcome === 'CANCEL' || outcome === 'CANCELLED') {
+        return cancelBetById(betId, outcome);
+    }
+
+    const isWinner = isWinningBetSide(bet.picked, outcome, market);
+    const payout = isWinner ? Number((Number(bet.amount || 0) * Number(bet.odds || 1)).toFixed(2)) : 0;
+    const nextStatus = isWinner ? 'won' : 'lost';
+
+    await dbRun("BEGIN TRANSACTION");
+    try {
+        if (payout > 0) {
+            await dbRun(`UPDATE users SET balance = balance + ? WHERE phone = ?`, [payout, bet.user_phone]);
+        }
+        await dbRun(`UPDATE bets SET status=? WHERE id=? AND status='active'`, [nextStatus, bet.id]);
+        await dbRun(
+            `UPDATE transactions
+             SET status=?, settled_amount=?
+             WHERE type='bet'
+             AND status IN ('active','pending','open')
+             AND (
+                bet_id=?
+                OR id=?
+                OR (bet_id IS NULL AND market_id=? AND user_phone=? AND side=?)
+             )`,
+            [nextStatus, payout, bet.id, bet.transaction_id || -1, bet.market_id, bet.user_phone, bet.picked]
+        );
+        await dbRun(`UPDATE markets SET result=COALESCE(NULLIF(result, ''), ?), status='settled', settled=1 WHERE id=?`, [outcome, bet.market_id]);
+        await dbRun("COMMIT");
+        emitBalance(bet.user_phone);
+        emitMarkets();
+        return { success: true, settledBets: 1, status: nextStatus, payout };
+    } catch (e) {
+        await dbRun("ROLLBACK");
         throw e;
     }
 };
@@ -1793,6 +1959,9 @@ app.get('/api/verify', (req, res) => {
 app.post('/api/reset-password', async (req, res) => {
     const { token, newPassword, otp } = req.body;
     try {
+        if (!newPassword || String(newPassword).length < 8) {
+            return res.status(400).json({ success: false, message: "Password must be at least 8 characters long." });
+        }
         const reset = await dbGet(`SELECT phone FROM password_resets WHERE token = ? AND otp = ? AND expires > ?`, [token, otp, Date.now()]);
         if (!reset) return res.status(400).json({ success: false, message: "Link expired or invalid" });
 
@@ -2256,11 +2425,14 @@ app.post('/api/forgot-password', (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const expires = Date.now() + 1200000;
         db.run(`INSERT INTO password_resets (phone, token, otp, expires) VALUES (?, ?, ?, ?)`, [norm, token, otp, expires], () => {
-            const baseUrl = publicSiteUrl();
-            const resetLink = `${baseUrl}/reset.password.html?token=${encodeURIComponent(token)}&otp=${encodeURIComponent(otp)}`;
+            const resetUrl = new URL('/reset.password.html', publicSiteUrl());
+            resetUrl.searchParams.set('token', token);
+            resetUrl.searchParams.set('otp', otp);
+            const resetLink = resetUrl.toString();
             sendPolyMail(user.email, "PolySoko Password Reset", 
-                `<p>Click the link below to reset your password. The verification code has been attached for your convenience.</p>
-                 <a href="${resetLink}">Reset Password</a>`);
+                `<p>Use this secure link to reset your PolySoko password. It expires in 20 minutes.</p>
+                 <p><a href="${resetLink}" style="display:inline-block;padding:12px 18px;background:#00ff88;color:#020405;text-decoration:none;border-radius:8px;font-weight:bold;">Reset Password</a></p>
+                 <p>If the button does not open, paste this link into your browser:<br><span style="word-break:break-all;">${resetLink}</span></p>`);
             
             sms.send({
                 to: [formatPhone(norm)],
@@ -2334,18 +2506,20 @@ app.post('/api/place-bet', authenticate, async (req, res) => {
         await dbRun(`UPDATE markets SET ${col} = ${col} + ? WHERE id=?`, [stake, marketId]);
 
         // Insert transaction log
-        await dbRun(`
+        const txInsert = await dbRun(`
             INSERT INTO transactions (user_phone, market_id, amount, type, side, status, odds, reference, is_boosted) 
             VALUES (?, ?, ?, 'bet', ?, 'active', ?, ?, ?)
         `, [req.user.phone, marketId, stake, side, boostedOdds, reference, isBoostedBet]);
+        const transactionId = txInsert.lastID;
 
         // Insert actual bet record
         const betInsert = await dbRun(`
-            INSERT INTO bets (user_phone, market_id, event, picked, amount, odds, status, category, commence_time, is_boosted)
-            VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
-        `, [req.user.phone, marketId, market.title, side, stake, boostedOdds, market.category || 'general', market.startTime || null, isBoostedBet]);
+            INSERT INTO bets (user_phone, market_id, event, picked, amount, odds, status, category, commence_time, is_boosted, transaction_id, reference)
+            VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
+        `, [req.user.phone, marketId, market.title, side, stake, boostedOdds, market.category || 'general', market.startTime || null, isBoostedBet, transactionId, reference]);
 
         const betId = betInsert.lastID;
+        await dbRun(`UPDATE transactions SET bet_id=? WHERE id=?`, [betId, transactionId]);
         const betRow = await dbGet(`SELECT * FROM bets WHERE id=?`, [betId]);
 
         await dbRun("COMMIT");
@@ -2702,23 +2876,39 @@ app.post('/api/admin/rephrase-market', authenticateAdmin, async (req, res) => {
 });
 
 // Simple AI chat endpoint for assistant UI
-app.post('/api/ai/chat', async (req, res) => {
-    const { message, engine = 'gpt' } = req.body;
+app.post('/api/ai/chat', authenticate, async (req, res) => {
+    const { message, engine = 'gpt', history = [] } = req.body;
     if (!message) return res.status(400).json({ success: false, message: 'Missing message' });
 
-    const systemPrompt = personaRaw || 'You are a helpful assistant.';
+    const user = await dbGet(`SELECT name, balance FROM users WHERE phone=?`, [req.user.phone]).catch(() => null);
+    const systemPrompt = [
+        personaRaw || 'You are a helpful PolySoko assistant.',
+        'Keep replies compact: 1 to 4 short sentences unless the user asks for detail.',
+        'Help with markets, bets, deposits, withdrawals, profile, and account issues.',
+        'Do not ask for passwords, OTPs, card details, or private keys.',
+        user ? `Current user: ${user.name || req.user.phone}. Balance: sKES ${Number(user.balance || 0).toFixed(2)}.` : ''
+    ].filter(Boolean).join('\n');
+    const compactHistory = Array.isArray(history)
+        ? history.slice(-8).map(item => ({
+            role: item.role === 'user' ? 'user' : 'assistant',
+            content: String(item.text || '').slice(0, 600)
+        }))
+        : [];
     const messages = [
         { role: 'system', content: systemPrompt },
+        ...compactHistory,
         { role: 'user', content: message }
     ];
 
     try {
-        const aiResp = await callAI({ engine, messages, promptText: message });
-        if (!aiResp || !aiResp.text) return res.status(500).json({ success: false, message: 'AI returned no response' });
+        const aiResp = await callAI({ engine, messages, promptText: `${systemPrompt}\n\n${message}` });
+        if (!aiResp || !aiResp.text) {
+            return res.json({ success: true, engine: 'local', reply: 'I can help with that, but the AI service is unavailable right now. Try again shortly or use the admin tools for urgent bet settlement.' });
+        }
         return res.json({ success: true, engine: aiResp.engine, reply: aiResp.text });
     } catch (err) {
         console.error('AI chat failed:', err.message || err);
-        return res.status(500).json({ success: false, message: 'AI chat failed' });
+        return res.json({ success: true, engine: 'local', reply: 'Chat is online, but the AI provider failed. Please try again shortly.' });
     }
 });
 
@@ -2748,9 +2938,14 @@ app.get('/api/admin/all-active-bets', authenticateAdmin, async (req, res) => {
                 b.picked AS side,
                 b.odds,
                 b.status,
+                m.sideA,
+                m.sideB,
+                m.status AS marketStatus,
+                m.result AS marketResult,
                 b.created_at as timestamp
             FROM bets b
             LEFT JOIN users u ON b.user_phone = u.phone
+            LEFT JOIN markets m ON b.market_id = m.id
             ORDER BY b.created_at DESC
 `);
 
@@ -3058,16 +3253,55 @@ app.post('/api/admin/reject-market', authenticateAdmin, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-app.post('/api/admin/settle', authenticateAdmin, (req, res) => {
+app.post('/api/admin/settle', authenticateAdmin, async (req, res) => {
     const { marketId, result } = req.body;
 
     if (!marketId || !result) {
         return res.status(400).json({ success: false });
     }
 
-    settleMarket(marketId, result.toUpperCase());
+    try {
+        const outcome = result.toUpperCase();
+        const details = outcome === 'CANCEL' || outcome === 'CANCELLED'
+            ? await cancelMarket(marketId, 'ADMIN_CANCELLED')
+            : await settleMarket(marketId, outcome);
+        res.json({ success: true, ...details });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message || "Settlement failed" });
+    }
+});
 
-    res.json({ success: true });
+app.post('/api/admin/cancel-market', authenticateAdmin, async (req, res) => {
+    const { marketId, reason = 'ADMIN_CANCELLED' } = req.body;
+    if (!marketId) return res.status(400).json({ success: false, message: "Missing market ID" });
+    try {
+        const details = await cancelMarket(marketId, reason);
+        res.json({ success: true, ...details });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message || "Cancel failed" });
+    }
+});
+
+app.post('/api/admin/settle-bet', authenticateAdmin, async (req, res) => {
+    const { betId, result } = req.body;
+    if (!betId || !result) return res.status(400).json({ success: false, message: "Missing bet ID or result" });
+    try {
+        const details = await settleBetById(betId, result);
+        res.json({ success: true, ...details });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message || "Bet settlement failed" });
+    }
+});
+
+app.post('/api/admin/cancel-bet', authenticateAdmin, async (req, res) => {
+    const { betId, reason = 'ADMIN_CANCELLED' } = req.body;
+    if (!betId) return res.status(400).json({ success: false, message: "Missing bet ID" });
+    try {
+        const details = await cancelBetById(betId, reason);
+        res.json({ success: true, ...details });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message || "Bet cancel failed" });
+    }
 });
 
 async function resolveFootballMarketResult(marketId) {
@@ -3093,6 +3327,34 @@ async function resolveFootballMarketResult(marketId) {
     if (hg > ag) return 'HOME';
     if (ag > hg) return 'AWAY';
     return 'DRAW';
+}
+
+async function settleFootballBacklog() {
+    const footballToResolve = await dbAll(
+        `SELECT id FROM markets WHERE (category='football' OR id LIKE 'fb_%' OR country='Football') AND settled=0 AND status='closed' AND (result IS NULL OR TRIM(result)='')`,
+        []
+    );
+
+    let resolved = 0;
+    for (const row of footballToResolve) {
+        try {
+            const result = await resolveFootballMarketResult(row.id);
+            if (!result) continue;
+            if (result === 'DRAW') await cancelMarket(row.id, 'DRAW');
+            else await settleMarket(row.id, result);
+            resolved++;
+        } catch (e) {
+            console.warn(`Football backlog resolve failed for ${row.id}:`, e.message);
+        }
+    }
+    return { resolved, candidates: footballToResolve.length };
+}
+
+async function runSettlementEngine() {
+    await closeExpiredMarkets();
+    await settleResolvedMarkets();
+    await settleWeatherMarkets();
+    return settleFootballBacklog();
 }
 
 app.post('/api/admin/settle-backlog', authenticateAdmin, async (req, res) => {
@@ -3736,18 +3998,18 @@ const startServer = async () => {
         await syncFootballMarkets();
         await syncSportsMarkets();
         await refreshBoostedMarkets();
-        await settleResolvedMarkets();
+        await runSettlementEngine();
         setInterval(syncAllMarkets, 3600000);
         setInterval(syncFootballMarkets, 3600000);
         setInterval(syncSportsMarkets, 3600000);
         setInterval(refreshBoostedMarkets, 86400000);
-        setInterval(settleResolvedMarkets, 3600000);
         await syncWeatherMarkets();
         setInterval(syncWeatherMarkets, 86400000);
         setInterval(cleanupOutdatedMarkets, 3600000);
         setInterval(sendDailyMarkets, 86400000);
-        setInterval(closeExpiredMarkets, 3600000); 
-        setInterval(settleWeatherMarkets, 3600000); 
+        setInterval(() => {
+            runSettlementEngine().catch(e => console.error("Settlement engine failed:", e.message));
+        }, 3600000);
         await forceVerifyLegacyUsers();
         if (process.env.EXIT_AFTER_STARTUP === '1' || process.env.EXIT_AFTER_STARTUP === 'true') {
             console.log('EXIT_AFTER_STARTUP set — exiting process so you can run in VS Code.');

@@ -82,6 +82,7 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="manifest" href="site.webmanifest">
     <meta name="theme-color" content="#070b10">
+    <script src="pwa.js" defer></script>
     <meta property="og:site_name" content="PolySoko">
     <meta property="og:title" content="PolySoko">
     <meta property="og:image" content="https://polysoko.online/icon-512.png">
@@ -1118,6 +1119,8 @@ button, input, select {
 
                         <th>Status</th>
 
+                        <th>Actions</th>
+
                     </tr>
 
                 </thead>
@@ -2136,27 +2139,64 @@ async function adminSettleMarket(marketId, btn) {
 /* ================= BETS ================= */
 async function loadGlobalActiveBets() {
     const table = document.getElementById('globalBetsTable');
-    table.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+    table.innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
 
     try {
         const res = await API.get('/admin/all-active-bets');
         const bets = res.bets || [];
+        const jsArg = (value) => String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
         table.innerHTML = bets.length
             ? bets.map(b => `
                 <tr>
                     <td>#${b.id}</td>
-                    <td>${b.userName}</td>
-                    <td>${b.marketTitle}</td>
+                    <td>${b.userName || b.user_phone}</td>
+                    <td>
+                        <div style="font-weight:700;">${b.marketTitle || 'Unknown market'}</div>
+                        <small style="color:#888;">${b.market_id || ''}</small>
+                    </td>
                     <td>${b.amount} sKES</td>
                     <td>${b.side}</td>
-                    <td>${b.status}</td>
+                    <td><span class="status-pill status-${b.status}">${b.status}</span></td>
+                    <td>
+                        ${b.status === 'active' ? `
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                <button class="btn-primary" style="padding:8px 10px; font-size:0.72rem;" onclick="adminSettleBet('${jsArg(b.id)}', '${jsArg(b.sideA || 'YES')}', '${jsArg(b.sideB || 'NO')}')">Settle</button>
+                                <button style="padding:8px 10px; font-size:0.72rem; border-radius:8px; border:1px solid #ff4444; background:rgba(255,68,68,0.1); color:#ff9b9b; cursor:pointer;" onclick="adminCancelBet('${jsArg(b.id)}')">Cancel</button>
+                            </div>
+                        ` : `<span style="color:#777;">No action</span>`}
+                    </td>
                 </tr>
             `).join('')
-            : '<tr><td colspan="6">No bets</td></tr>';
+            : '<tr><td colspan="7">No bets</td></tr>';
 
-    } catch {
-        table.innerHTML = '<tr><td colspan="6">Error</td></tr>';
+    } catch (err) {
+        table.innerHTML = `<tr><td colspan="7">Error: ${err.message || 'Unable to load bets'}</td></tr>`;
+    }
+}
+
+async function adminSettleBet(betId, sideA = 'YES', sideB = 'NO') {
+    const result = prompt(`Winning result for bet #${betId}? Use ${sideA}, ${sideB}, YES, NO, HOME, AWAY, DRAW, or CANCEL.`);
+    if (!result) return;
+    if (!confirm(`Settle bet #${betId} using result ${result.toUpperCase()}?`)) return;
+
+    try {
+        await API.post('/admin/settle-bet', { betId, result: result.trim().toUpperCase() });
+        alert("Bet settlement completed.");
+        await Promise.all([loadGlobalActiveBets(), loadAdminTreasury()]);
+    } catch (err) {
+        alert("Bet settlement failed: " + err.message);
+    }
+}
+
+async function adminCancelBet(betId) {
+    if (!confirm(`Cancel and refund bet #${betId}?`)) return;
+    try {
+        await API.post('/admin/cancel-bet', { betId, reason: 'ADMIN_CANCELLED' });
+        alert("Bet cancelled and refunded.");
+        await Promise.all([loadGlobalActiveBets(), loadAdminTreasury()]);
+    } catch (err) {
+        alert("Bet cancel failed: " + err.message);
     }
 }
 
