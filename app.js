@@ -1213,29 +1213,6 @@ async function renderSuperAdminProfile() {
 
 window.toggleAccountCenter = toggleAccountCenter;
 
-async function login() {
-    const phone = document.getElementById("phone")?.value?.trim();
-    const password = document.getElementById("password")?.value;
-
-    if (!phone || !password) {
-        return alert("Please fill in all fields");
-    }
-
-    try {
-        const res = await window.API.login({ phone, password });
-
-        if (res?.success && res.token) {
-            localStorage.setItem("token", res.token);
-            window.location.href = "index.html";
-        } else {
-            alert(res?.message || "Login failed");
-        }
-
-    } catch (err) {
-        console.error("Login error:", err);
-        alert("Server error. Check connection.");
-    }
-}
 window.refreshBets = async function(status, btnElement) {
     if (btnElement) {
         document.querySelectorAll('.predictions-nav .sub-tab').forEach(b => b.classList.remove('active'));
@@ -1264,7 +1241,6 @@ window.refreshBets = async function(status, btnElement) {
         listView.innerHTML = '<div class="empty-state">Error loading predictions.</div>';
     }
 };
-window.login = login;
 
 window.openMpesaDashboard = async function(type = 'all') {
     const container = document.getElementById('marketsList');

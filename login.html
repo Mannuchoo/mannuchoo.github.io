@@ -122,7 +122,10 @@
         }
 
         // Trigger UI overhaul on load
-        window.onload = () => { if(window.showWelcomeHeader) window.showWelcomeHeader(); };
+        window.onload = () => { 
+            if(window.showWelcomeHeader) window.showWelcomeHeader(); 
+            console.log("Login module initialized.");
+        };
 
         async function login() {
             const phone = document.getElementById("phone").value.trim();

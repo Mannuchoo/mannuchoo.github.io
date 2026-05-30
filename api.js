@@ -217,10 +217,6 @@ function restoreSavedAvatar() {
 
 window.addEventListener('DOMContentLoaded', () => {
     restoreSavedAvatar();
-    // Automatically overhaul the UI if we are on the login page or a form is present
-    if (window.location.pathname.includes('login') || window.location.pathname.includes('reset') || document.getElementById('phone')) {
-        showWelcomeHeader();
-    }
 });
 
 /**
