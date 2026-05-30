@@ -715,6 +715,12 @@ main {
     background: #14211f;
 }
 
+.sports-category-card.active {
+    border-color: #00ff88;
+    background: rgba(0, 255, 136, 0.12);
+    box-shadow: 0 0 0 1px rgba(0, 255, 136, 0.15);
+}
+
 .tab-btn {
     padding: 10px 14px;
 

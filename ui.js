@@ -2,7 +2,7 @@ window.state = window.state || {
     allMarkets: [],
     filteredMarkets: [],
     category: localStorage.getItem("last_category") || "all",
-    sportsType: localStorage.getItem("last_sports_type") || "",
+    sportsType: localStorage.getItem("last_category") === "sports" ? (localStorage.getItem("last_sports_type") || "") : "",
     search: "",
     loading: true,
     lastUpdate: null,
@@ -44,10 +44,8 @@ window.setCategory = function (category) {
 
     const active = normalizeCategory(category || "all");
     window.state.category = active;
-    if (active !== "sports") {
-        window.state.sportsType = "";
-        localStorage.removeItem("last_sports_type");
-    }
+    window.state.sportsType = "";
+    localStorage.removeItem("last_sports_type");
     localStorage.setItem("last_category", active);
     document.querySelectorAll('.category-filter-row .pill').forEach(pill => {
         pill.classList.remove('active');
@@ -314,6 +312,22 @@ function renderSportsPage(container, sportsMarkets) {
     const sportNames = [...new Set([...sportsCatalog, ...source.map(sportLabelFor)])]
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b));
+    const renderSportsCategoryGrid = () => `
+        <div class="main-category-label" style="color:#00ff88;font-weight:800;padding:10px 0;">ALL SPORTS</div>
+        <div class="sports-category-grid">
+            ${sportNames.map(name => {
+                const normalized = normalizeCategory(name);
+                const count = source.filter(m => normalizeCategory(sportLabelFor(m)) === normalized).length;
+                const isActive = selected === normalized;
+                return `
+                    <button class="sports-category-card${isActive ? ' active' : ''}" onclick="window.setSportsType('${escapeHtml(normalized)}')">
+                        <span>${escapeHtml(name)}</span>
+                        <small>${count} matches</small>
+                    </button>
+                `;
+            }).join('')}
+        </div>
+    `;
 
     let html = `
         <div class="sports-page">
@@ -325,19 +339,7 @@ function renderSportsPage(container, sportsMarkets) {
 
     if (!selected) {
         html += `
-            <div class="main-category-label" style="color:#00ff88;font-weight:800;padding:10px 0;">SPORTS</div>
-            <div class="sports-category-grid">
-                ${sportNames.map(name => {
-                    const normalized = normalizeCategory(name);
-                    const count = source.filter(m => normalizeCategory(sportLabelFor(m)) === normalized).length;
-                    return `
-                        <button class="sports-category-card" onclick="window.setSportsType('${escapeHtml(normalized)}')">
-                            <span>${escapeHtml(name)}</span>
-                            <small>${count} matches</small>
-                        </button>
-                    `;
-                }).join('')}
-            </div>
+            ${renderSportsCategoryGrid()}
             ${source.length ? '' : `<div class="empty-state" style="padding:24px;">Sports markets are syncing. Pick a sport to check its page while new matches load.</div>`}
         </div>`;
         container.innerHTML = html;
@@ -349,7 +351,10 @@ function renderSportsPage(container, sportsMarkets) {
         .filter(m => normalizeCategory(sportLabelFor(m)) === selected)
         .sort((a, b) => `${a.league || ""} ${a.title || ""}`.localeCompare(`${b.league || ""} ${b.title || ""}`));
 
-    html += `<div class="main-category-label" style="color:#00ff88;font-weight:800;padding:10px 0;">${escapeHtml(label).toUpperCase()} MATCHES</div>`;
+    html += `
+        ${renderSportsCategoryGrid()}
+        <div class="main-category-label" style="color:#00ff88;font-weight:800;padding:18px 0 10px 0;">${escapeHtml(label).toUpperCase()} MATCHES</div>
+    `;
 
     let lastLeague = "";
     if (!matches.length) {
