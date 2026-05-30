@@ -500,11 +500,15 @@ function publicAssetUrl(req, assetPath) {
     if (!assetPath) return null;
     if (/^https?:\/\//i.test(assetPath)) return assetPath;
     const cleanPath = assetPath.startsWith('/') ? assetPath : `/${assetPath}`;
-    const configuredBase = process.env.PUBLIC_API_BASE || process.env.API_PUBLIC_URL || process.env.BASE_URL;
+    const configuredBase = process.env.PUBLIC_API_BASE || process.env.API_PUBLIC_URL;
     if (configuredBase) return `${configuredBase.replace(/\/+$/, '')}${cleanPath}`;
     const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0].trim();
     const host = String(req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
     return `${proto}://${host}${cleanPath}`;
+}
+
+function publicSiteUrl() {
+    return (process.env.PUBLIC_SITE_URL || process.env.APP_URL || 'https://polysoko.online').replace(/\/+$/, '');
 }
 
 // --- DB SCHEMA & AUTO-MIGRATION ---
@@ -1733,7 +1737,7 @@ app.post('/api/register', async (req, res) => {
             [name, normalized, hashedPassword, email, myReferralCode, referralCode || null, verificationToken], function(err) {
                 if (err) return res.status(400).json({ success: false, message: "User already exists." });
                 
-                const verifyLink = `${process.env.BASE_URL}/verify.html?token=${verificationToken}`;
+                const verifyLink = `${publicSiteUrl()}/verify.html?token=${verificationToken}`;
                 sendPolyMail(email, "Welcome to PolySoko - Verify Your Account", 
                     `<h1>Welcome ${name}!</h1>
                      <p>Soko ni Soko. Please verify your account to activate your referral benefits:</p>
@@ -2082,14 +2086,32 @@ app.get('/api/markets/preview', async (req, res) => {
 app.get('/api/sports/categories', async (req, res) => {
     try {
         const rows = await dbAll(
-            `SELECT COALESCE(country, 'Other') AS sport, COUNT(*) AS count
+            `SELECT
+                CASE
+                    WHEN category='football' OR id LIKE 'fb_%' THEN 'Football'
+                    ELSE COALESCE(country, 'Other')
+                END AS sport,
+                COUNT(*) AS count
              FROM markets
-             WHERE category='sports' AND status IN ('open', 'upcoming', 'live')
-             GROUP BY COALESCE(country, 'Other')
+             WHERE (category='sports' OR category='football' OR id LIKE 'sp_%' OR id LIKE 'fb_%')
+               AND status IN ('open', 'upcoming', 'live')
+             GROUP BY
+                CASE
+                    WHEN category='football' OR id LIKE 'fb_%' THEN 'Football'
+                    ELSE COALESCE(country, 'Other')
+                END
              ORDER BY sport ASC`,
             []
         );
-        res.json({ success: true, sports: rows || [] });
+        const catalog = ["Football", "NFL", "NPL", "Basketball", "Hockey", "Baseball", "Volleyball", "Rugby", "Handball"];
+        const counts = new Map((rows || []).map(row => [String(row.sport || "Other"), Number(row.count || 0)]));
+        for (const sport of catalog) {
+            if (!counts.has(sport)) counts.set(sport, 0);
+        }
+        const sports = [...counts.entries()]
+            .map(([sport, count]) => ({ sport, count }))
+            .sort((a, b) => a.sport.localeCompare(b.sport));
+        res.json({ success: true, sports });
     } catch (e) {
         res.status(500).json({ success: false, message: "Unable to load sports categories" });
     }
@@ -2202,7 +2224,7 @@ app.post('/api/forgot-password', (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const expires = Date.now() + 1200000;
         db.run(`INSERT INTO password_resets (phone, token, otp, expires) VALUES (?, ?, ?, ?)`, [norm, token, otp, expires], () => {
-            const baseUrl = (process.env.PUBLIC_SITE_URL || process.env.APP_URL || process.env.BASE_URL || 'https://polysoko.online').replace(/\/+$/, '');
+            const baseUrl = publicSiteUrl();
             const resetLink = `${baseUrl}/reset.password.html?token=${encodeURIComponent(token)}&otp=${encodeURIComponent(otp)}`;
             sendPolyMail(user.email, "PolySoko Password Reset", 
                 `<p>Click the link below to reset your password. The verification code has been attached for your convenience.</p>
@@ -3639,7 +3661,7 @@ const forceVerifyLegacyUsers = async () => {
     for (const user of legacyUsers) {
         const token = crypto.randomBytes(32).toString('hex');
         await dbRun("UPDATE users SET verification_token = ? WHERE id = ?", [token, user.id]);
-        const verifyLink = `${process.env.BASE_URL}/verify.html?token=${token}`;
+        const verifyLink = `${publicSiteUrl()}/verify.html?token=${token}`;
         sendPolyMail(user.email, "Action Required: Verify Your PolySoko Account", 
             `<h1>Hello ${user.name}!</h1>
              <p>We've updated our security. Please verify your account to unlock your referral code:</p>

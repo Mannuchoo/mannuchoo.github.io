@@ -10,9 +10,7 @@
     <img id="userAvatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" class="avatar-img" alt="Profile picture" title="Open profile picture" tabindex="0">
 
     <!-- EDIT BUTTON -->
-    <label for="avatarInput" class="avatar-edit">
-        âœï¸
-    </label>
+    <label for="avatarInput" class="avatar-edit" title="Change profile picture" aria-label="Change profile picture">Edit</label>
     <input type="file" id="avatarInput" accept="image/*" hidden>
 
     <!-- ACTION BUTTONS (hidden until image selected) -->
@@ -46,8 +44,8 @@
 
       <!-- ACTIONS in profile html -->
 <div class="account-actions" id="userActionsArea">
-    <button class="action-btn" onclick="triggerDeposit()">ðŸ’° Deposit</button>
-    <button class="action-btn" onclick="toggleWithdrawModal()">ðŸ’¸ Withdraw</button>
+    <button class="action-btn" onclick="triggerDeposit()">Deposit</button>
+    <button class="action-btn" onclick="toggleWithdrawModal()">Withdraw</button>
 </div>
 
         <!-- EMAIL EDIT ONLY -->

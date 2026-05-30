@@ -292,7 +292,7 @@ function renderFilteredMarkets() {
 }
 
 function renderSportsPage(container, sportsMarkets) {
-    const sportsCatalog = ["Football", "NPL", "Basketball", "Hockey", "Baseball", "Volleyball", "Rugby", "Handball"];
+    const sportsCatalog = ["Football", "NFL", "NPL", "Basketball", "Hockey", "Baseball", "Volleyball", "Rugby", "Handball"];
     const source = (sportsMarkets || [])
         .filter(m => normalizeCategory(m.category) === "sports" || normalizeCategory(m.category) === "football" || m.id?.startsWith("sp_") || m.id?.startsWith("fb_"))
         .filter(m => {
@@ -313,15 +313,6 @@ function renderSportsPage(container, sportsMarkets) {
             </div>
     `;
 
-    if (!source.length) {
-        container.innerHTML = `${html}
-            <div class="empty-state" style="padding:24px;">
-                Sports markets are syncing. Check again shortly.
-            </div>
-        </div>`;
-        return;
-    }
-
     if (!selected) {
         html += `
             <div class="main-category-label" style="color:#00ff88;font-weight:800;padding:10px 0;">SPORTS</div>
@@ -337,6 +328,7 @@ function renderSportsPage(container, sportsMarkets) {
                     `;
                 }).join('')}
             </div>
+            ${source.length ? '' : `<div class="empty-state" style="padding:24px;">Sports markets are syncing. Pick a sport to check its page while new matches load.</div>`}
         </div>`;
         container.innerHTML = html;
         return;
@@ -368,8 +360,10 @@ function createMarketCard(m) {
     const isFootball = m.category === "football" || m.id?.startsWith("fb_");
     const isSports = m.category === "sports" || m.id?.startsWith("sp_");
     const isNews = m.category === "news";
-    const safeTitle = ((isNews ? m.betQuestion : m.title) || "").replace(/'/g, "\\'");
-    const displayTitle = escapeHtml(isNews ? (m.betQuestion || m.title) : m.title) || 'Unknown Market';
+    const titleFallback = m.sideA && m.sideB ? `${m.sideA} vs ${m.sideB}` : "";
+    const rawDisplayTitle = isNews ? (m.betQuestion || m.title) : (m.title || titleFallback);
+    const safeTitle = (rawDisplayTitle || "").replace(/'/g, "\\'");
+    const displayTitle = escapeHtml(rawDisplayTitle) || 'Market';
 
     // Determine badge and color
     let badgeText = (isSports ? `${m.country || 'Sports'}${m.league ? ` - ${m.league}` : ''}` : (m.league || m.source || "GLOBAL")).toUpperCase();

@@ -192,7 +192,7 @@ async function fetchProfile() {
         if (document.getElementById("roleBadge")) document.getElementById("roleBadge").innerText = (u.role || "user").toUpperCase();
         // Fix: Prepend API_BASE for images when hosted on GitHub Pages
 
-        const defaultAvatar = "uploads/avatars/default.png";
+        const defaultAvatar = "logo-mark.png";
         const avatarUrl = assetUrl(u.avatar_url, defaultAvatar);
         const fallbackAvatarUrl = assetUrl(defaultAvatar);
         if (document.getElementById("userAvatar")) {
