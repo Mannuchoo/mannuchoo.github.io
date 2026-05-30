@@ -48,12 +48,9 @@
 }
 
 .login-experience {
-    width: min(1180px, 100%);
+    width: min(980px, 100%);
     min-height: 100vh;
-    display: grid;
-    grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
-    gap: 24px;
-    align-items: center;
+    display: block;
     padding: 24px;
 }
 
@@ -61,6 +58,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    align-items: center;
 }
 
 .login-brand {
@@ -83,11 +81,43 @@
     line-height: 1.1;
     color: #00ff88;
     margin: 0;
+    animation: sloganBubble 2.8s ease-in-out infinite;
+    text-shadow: 0 0 18px rgba(0, 255, 136, 0.35);
 }
 
-.guest-market-window {
+.auth-launcher {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 10020;
+    min-height: 42px;
+    border: 1px solid rgba(0, 255, 136, 0.38);
+    border-radius: 8px;
+    background: #00ff88;
+    color: #050505;
+    padding: 0 14px;
+    font-size: 0.86rem;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+}
+
+.auth-card-hidden {
+    display: none !important;
+}
+
+@keyframes sloganBubble {
+    0%, 100% {
+        transform: translateY(0) scale(1);
+    }
+    50% {
+        transform: translateY(-4px) scale(1.025);
+    }
+}
+
+.live-market-window {
     min-width: 0;
-    max-height: calc(100vh - 48px);
+    width: min(100%, 760px);
     overflow: auto;
     border: 1px solid rgba(0, 255, 136, 0.18);
     border-radius: 8px;
@@ -95,7 +125,7 @@
     padding: 18px;
 }
 
-.guest-window-header {
+.live-market-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -103,18 +133,10 @@
     margin-bottom: 12px;
 }
 
-.guest-window-header h2 {
-    margin: 4px 0 0;
+.live-market-header h2 {
+    margin: 0;
     color: #e6edf3;
-    font-size: 1.15rem;
-}
-
-.guest-kicker {
-    color: #00ff88;
-    font-size: 0.72rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-size: 1.25rem;
 }
 
 .guest-categories {
@@ -136,11 +158,10 @@
     }
 
     .login-experience {
-        grid-template-columns: 1fr;
-        padding: 16px;
+        padding: 72px 16px 16px;
     }
 
-    .guest-market-window {
+    .live-market-window {
         max-height: none;
     }
 }

@@ -292,11 +292,16 @@ function renderFilteredMarkets() {
 }
 
 function renderSportsPage(container, sportsMarkets) {
+    const sportsCatalog = ["Football", "NPL", "Basketball", "Hockey", "Baseball", "Volleyball", "Rugby", "Handball"];
     const source = (sportsMarkets || [])
-        .filter(m => normalizeCategory(m.category) === "sports" || normalizeCategory(m.category) === "football" || m.id?.startsWith("sp_") || m.id?.startsWith("fb_"));
+        .filter(m => normalizeCategory(m.category) === "sports" || normalizeCategory(m.category) === "football" || m.id?.startsWith("sp_") || m.id?.startsWith("fb_"))
+        .filter(m => {
+            const title = String(m.title || "").toLowerCase();
+            return title && !["home vs away", "unknown vs unknown"].includes(title);
+        });
     const selected = normalizeCategory(state.sportsType || "");
     const sportLabelFor = (m) => normalizeCategory(m.category) === "football" || m.id?.startsWith("fb_") ? "Football" : (m.country || m.sport || "Other");
-    const sportNames = [...new Set(source.map(sportLabelFor))]
+    const sportNames = [...new Set([...sportsCatalog, ...source.map(sportLabelFor)])]
         .filter(Boolean)
         .sort((a, b) => a.localeCompare(b));
 
@@ -345,6 +350,9 @@ function renderSportsPage(container, sportsMarkets) {
     html += `<div class="main-category-label" style="color:#00ff88;font-weight:800;padding:10px 0;">${escapeHtml(label).toUpperCase()} MATCHES</div>`;
 
     let lastLeague = "";
+    if (!matches.length) {
+        html += `<div class="empty-state" style="padding:24px;">${escapeHtml(label)} matches are syncing. Check again shortly.</div>`;
+    }
     matches.forEach(m => {
         const league = m.league || "Global";
         if (league !== lastLeague) {

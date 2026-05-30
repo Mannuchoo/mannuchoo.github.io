@@ -865,6 +865,7 @@ const processMatches = async (matches) => {
 };
 
 const SPORTS_SOURCES = [
+    { key: 'nfl', label: 'NFL', host: 'https://v1.american-football.api-sports.io/games' },
     { key: 'basketball', label: 'Basketball', host: 'https://v1.basketball.api-sports.io/games' },
     { key: 'baseball', label: 'Baseball', host: 'https://v1.baseball.api-sports.io/games' },
     { key: 'hockey', label: 'Hockey', host: 'https://v1.hockey.api-sports.io/games' },
@@ -878,11 +879,17 @@ function getSportsGameId(game, sportKey) {
 }
 
 function getSportsTeamName(game, side) {
+    const index = side === 'home' ? 0 : 1;
+    const teamValue = game?.teams?.[side] || game?.team?.[side] || game?.[side] || game?.competitors?.[index] || game?.participants?.[index];
+    if (typeof teamValue === 'string') return teamValue;
     return game?.teams?.[side]?.name ||
         game?.team?.[side]?.name ||
         game?.[side]?.name ||
-        game?.competitors?.[side === 'home' ? 0 : 1]?.name ||
-        (side === 'home' ? 'Home' : 'Away');
+        game?.competitors?.[index]?.name ||
+        game?.participants?.[index]?.name ||
+        game?.participants?.[index]?.team?.name ||
+        game?.teams?.[side]?.team?.name ||
+        "";
 }
 
 function getSportsStartTime(game) {
@@ -908,6 +915,17 @@ const syncSportsMarkets = async () => {
         return;
     }
 
+    await dbRun(
+        `DELETE FROM markets
+         WHERE (category='sports' OR id LIKE 'sp_%')
+           AND (title IN ('Home vs Away', 'Unknown vs Unknown')
+                OR sideA IN ('Home', 'Away', 'Unknown', '')
+                OR sideB IN ('Home', 'Away', 'Unknown', '')
+                OR sideA IS NULL
+                OR sideB IS NULL)`,
+        []
+    );
+
     const dates = [0, 1].map((daysAhead) => formatNairobiDate(daysAhead));
     let synced = 0;
 
@@ -929,6 +947,10 @@ const syncSportsMarkets = async () => {
                 const marketId = `sp_${sport.key}_${rawId}`;
                 const homeTeam = getSportsTeamName(game, 'home');
                 const awayTeam = getSportsTeamName(game, 'away');
+                if (!homeTeam || !awayTeam) {
+                    console.warn(`${sport.label} game skipped because teams were missing: ${rawId}`);
+                    continue;
+                }
                 const startTime = getSportsStartTime(game);
                 const status = getSportsStatus(game, startTime);
                 const league = game?.league?.name || game?.league || sport.label;
@@ -2024,6 +2046,39 @@ app.get('/api/markets', (req, res) => {
     });
 });
 
+app.get('/api/markets/preview', async (req, res) => {
+    try {
+        const rows = await dbAll(
+            `SELECT * FROM markets
+             WHERE status IN ('open', 'upcoming', 'live')
+             ORDER BY
+                CASE WHEN status='live' THEN 0 ELSE 1 END,
+                COALESCE(is_boosted, 0) DESC,
+                COALESCE(home_volume, 0) + COALESCE(away_volume, 0) DESC,
+                startTime ASC,
+                title ASC`,
+            []
+        );
+
+        const wanted = ['sports', 'crypto', 'news', 'weather', 'politics', 'tech'];
+        const byCategory = new Map();
+
+        for (const market of rows || []) {
+            const category = market.id?.startsWith('fb_') || market.category === 'football'
+                ? 'sports'
+                : String(market.category || 'other').toLowerCase();
+            if (!wanted.includes(category) || byCategory.has(category)) continue;
+            byCategory.set(category, { ...market, category });
+        }
+
+        const markets = wanted.map(category => byCategory.get(category)).filter(Boolean);
+        res.json({ success: true, markets });
+    } catch (e) {
+        console.error("Preview markets failed:", e.message);
+        res.status(500).json({ success: false, message: "Unable to load preview markets" });
+    }
+});
+
 app.get('/api/sports/categories', async (req, res) => {
     try {
         const rows = await dbAll(
@@ -2147,7 +2202,8 @@ app.post('/api/forgot-password', (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const expires = Date.now() + 1200000;
         db.run(`INSERT INTO password_resets (phone, token, otp, expires) VALUES (?, ?, ?, ?)`, [norm, token, otp, expires], () => {
-            const resetLink = `${process.env.BASE_URL}/reset.password.html?token=${token}&otp=${otp}`;
+            const baseUrl = (process.env.PUBLIC_SITE_URL || process.env.APP_URL || process.env.BASE_URL || 'https://polysoko.online').replace(/\/+$/, '');
+            const resetLink = `${baseUrl}/reset.password.html?token=${encodeURIComponent(token)}&otp=${encodeURIComponent(otp)}`;
             sendPolyMail(user.email, "PolySoko Password Reset", 
                 `<p>Click the link below to reset your password. The verification code has been attached for your convenience.</p>
                  <a href="${resetLink}">Reset Password</a>`);
