@@ -16,6 +16,14 @@
     ">
 
     <title>PolySoko | Predictions</title>
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="icon" href="favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="manifest" href="site.webmanifest" />
+    <meta name="theme-color" content="#070b10" />
+    <meta property="og:site_name" content="PolySoko" />
+    <meta property="og:title" content="PolySoko" />
+    <meta property="og:image" content="https://polysoko.online/icon-512.png" />
 
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
@@ -50,7 +58,7 @@
 <header class="mobile-header">
     <div class="header-left">
         <button class="hamburger" id="hamburgerBtn">☰</button>
-        <div class="logo">POLYSOKO</div>
+        <div class="logo"><img src="logo-mark.png" class="brand-mark" alt="PolySoko logo">POLYSOKO</div>
     </div>
     <button class="profile-trigger" id="profileBtn">
         <img id="headerAvatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" class="header-avatar" alt="" style="background: #222;">
@@ -107,7 +115,7 @@
     <!-- CATEGORY FILTER -->
     <div class="category-filter-row">
         <button class="pill active" data-cat="all" onclick="setCategory('all')">All</button>
-        <button class="pill" data-cat="football" onclick="setCategory('football')">⚽ Football</button>
+        <button class="pill" data-cat="sports" onclick="setCategory('sports')">Sports</button>
         <button class="pill" data-cat="crypto" onclick="setCategory('crypto')">🪙 Crypto</button>
         <button class="pill" data-cat="news" onclick="setCategory('news')">📰 News</button>
         <button class="pill" data-cat="weather" onclick="setCategory('weather')">🌦️ Weather</button>

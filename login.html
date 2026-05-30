@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PolySoko | Login</title>
+    <link rel="shortcut icon" href="favicon.ico">
+    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
+    <meta name="theme-color" content="#070b10">
+    <meta property="og:site_name" content="PolySoko">
+    <meta property="og:title" content="PolySoko">
+    <meta property="og:image" content="https://polysoko.online/icon-512.png">
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="auth-page">
@@ -18,6 +26,13 @@
             <p id="forgotStatus" style="font-size:0.75rem; margin-top:10px;"></p>
         </div>
     </div>
+
+    <main class="login-experience">
+        <section class="login-panel">
+            <div class="login-brand">
+                <img src="logo-mark.png" alt="PolySoko logo">
+                <h1>SOKO NI SOKO! KARIBU POLYSOKO!</h1>
+            </div>
 
     <div id="loginBox" class="auth-card">
         <h2>Login</h2>
@@ -51,6 +66,30 @@
             Already have an account? <span>Login</span>
         </div>
     </div>
+        </section>
+
+        <section class="guest-market-window">
+            <div class="guest-window-header">
+                <div>
+                    <span class="guest-kicker">Guest Window</span>
+                    <h2>Live Markets Preview</h2>
+                </div>
+                <button class="pill active" onclick="scrollToAuth('register')">Join</button>
+            </div>
+            <div class="category-filter-row guest-categories">
+                <button class="pill active" data-cat="all" onclick="setCategory('all')">All</button>
+                <button class="pill" data-cat="sports" onclick="setCategory('sports')">Sports</button>
+                <button class="pill" data-cat="crypto" onclick="setCategory('crypto')">Crypto</button>
+                <button class="pill" data-cat="news" onclick="setCategory('news')">News</button>
+                <button class="pill" data-cat="weather" onclick="setCategory('weather')">Weather</button>
+                <button class="pill" data-cat="politics" onclick="setCategory('politics')">Politics</button>
+            </div>
+            <div id="ongoing" class="trending-horizontal-scroll guest-trending"></div>
+            <div id="marketsList" class="markets-vertical-stack guest-market-list">
+                <div class="loading-state">Loading markets...</div>
+            </div>
+        </section>
+    </main>
 
     <!-- T&C Modal -->
     <div id="termsModal" class="modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:2000; justify-content:center; align-items:center; backdrop-filter:blur(10px);">
@@ -97,8 +136,21 @@
     </div>
 
     <script src="api.js"></script>
+    <script src="ui.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
+        function scrollToAuth(mode = 'login') {
+            const loginBox = document.getElementById("loginBox");
+            const registerBox = document.getElementById("registerBox");
+            const showRegister = mode === 'register';
+            loginBox.style.display = showRegister ? "none" : "block";
+            registerBox.style.display = showRegister ? "block" : "none";
+            const target = showRegister ? registerBox : loginBox;
+            target.scrollIntoView({ behavior: "smooth", block: "center" });
+            target.classList.add("shake-highlight");
+            setTimeout(() => target.classList.remove("shake-highlight"), 900);
+        }
+
         function showTermsModal() {
             const name = document.getElementById('regName').value.trim();
             const phone = document.getElementById('regPhone').value.trim();
@@ -121,11 +173,17 @@
             registerBox.style.display = showingLogin ? "block" : "none";
         }
 
-        // Trigger UI overhaul on load
-        window.onload = () => { 
+        document.addEventListener("DOMContentLoaded", async () => { 
             if(window.showWelcomeHeader) window.showWelcomeHeader(); 
             console.log("Login module initialized.");
-        };
+            try {
+                if (typeof fetchMarkets === "function") {
+                    await fetchMarkets();
+                }
+            } catch (e) {
+                console.warn("Guest market preview failed:", e.message);
+            }
+        });
 
         async function login() {
             const phone = document.getElementById("phone").value.trim();
@@ -222,6 +280,7 @@
         }
 
         window.toggleAuth = toggleAuth;
+        window.scrollToAuth = scrollToAuth;
         window.login = login;
         window.register = register;
         window.forgotPassword = forgotPassword;

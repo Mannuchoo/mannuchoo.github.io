@@ -21,3 +21,19 @@
 !.gitignore
 !.nojekyll
 !CNAME
+!logo 2.jpg
+!favicon.ico
+!favicon.png
+!apple-touch-icon.png
+!icon-192.png
+!icon-512.png
+!logo-mark.png
+!site.webmanifest
+!public/
+public/*
+!public/server/
+public/server/*
+!public/server/server.js
+!public/server/package.json
+!public/server/package-lock.json
+!public/server/blockchain.js

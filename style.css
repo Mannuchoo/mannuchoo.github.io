@@ -47,6 +47,104 @@
     font-family: 'Inter', sans-serif;
 }
 
+.login-experience {
+    width: min(1180px, 100%);
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: center;
+    padding: 24px;
+}
+
+.login-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.login-brand {
+    text-align: center;
+    color: #e6edf3;
+}
+
+.login-brand img {
+    width: 86px;
+    height: 86px;
+    border-radius: 18px;
+    object-fit: cover;
+    background: #fff;
+    border: 1px solid rgba(255,255,255,0.18);
+    margin-bottom: 12px;
+}
+
+.login-brand h1 {
+    font-size: clamp(1.45rem, 3vw, 2.2rem);
+    line-height: 1.1;
+    color: #00ff88;
+    margin: 0;
+}
+
+.guest-market-window {
+    min-width: 0;
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    border: 1px solid rgba(0, 255, 136, 0.18);
+    border-radius: 8px;
+    background: rgba(8, 13, 18, 0.88);
+    padding: 18px;
+}
+
+.guest-window-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.guest-window-header h2 {
+    margin: 4px 0 0;
+    color: #e6edf3;
+    font-size: 1.15rem;
+}
+
+.guest-kicker {
+    color: #00ff88;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.guest-categories {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.guest-trending {
+    margin-bottom: 12px;
+}
+
+.guest-market-list .market-card {
+    cursor: pointer;
+}
+
+@media (max-width: 860px) {
+    .auth-page {
+        align-items: flex-start;
+    }
+
+    .login-experience {
+        grid-template-columns: 1fr;
+        padding: 16px;
+    }
+
+    .guest-market-window {
+        max-height: none;
+    }
+}
+
 .auth-card {
     background: #1a1b23;
     border: 1px solid rgba(0, 255, 136, 0.2);
@@ -179,9 +277,21 @@
 }
 
 .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 18px;
     font-weight: 800;
     letter-spacing: 1px;
+}
+
+.brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #fff;
+    border: 1px solid rgba(255,255,255,0.18);
 }
 
 /* PROFILE ICON (FIXED CLICK AREA) */
@@ -534,6 +644,54 @@ main {
     color: #000;
     border-color: #00ff88;
     box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+}
+
+.sports-page {
+    width: 100%;
+}
+
+.sports-page-header {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.sports-category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.sports-category-card {
+    min-height: 86px;
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    border-radius: 8px;
+    background: #111820;
+    color: #e6edf3;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 16px;
+    text-align: left;
+}
+
+.sports-category-card span {
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+
+.sports-category-card small {
+    color: #8b98a5;
+    margin-top: 6px;
+}
+
+.sports-category-card:hover {
+    border-color: #00ff88;
+    background: #14211f;
 }
 
 .tab-btn {
@@ -1036,6 +1194,7 @@ main {
     border-radius: 50%;
     object-fit: cover;
     border: 2px solid var(--accent);
+    cursor: pointer;
 }
 
 /* ✏️ Edit button */
@@ -1085,6 +1244,41 @@ main {
     border-radius: 8px;
     color: var(--text);
     cursor: pointer;
+}
+
+.avatar-preview-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100060;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.86);
+    padding: 24px;
+}
+
+.avatar-preview-card {
+    width: min(92vw, 380px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.avatar-preview-card img {
+    width: min(76vw, 320px);
+    height: min(76vw, 320px);
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2px solid #00ff88;
+    background: #111;
+}
+
+.avatar-preview-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 .profile-field {

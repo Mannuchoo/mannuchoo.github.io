@@ -126,7 +126,7 @@ async function fetchProfile() {
                 adminBtn.innerHTML = '⚙️';
                 adminBtn.onclick = (e) => { 
                     e.stopPropagation();
-                    window.openAdminPanel ? window.openAdminPanel() : window.location.href = '/admin.html'; 
+                    window.openAdminPanel ? window.openAdminPanel() : window.location.href = 'admin.html'; 
                 };
                 balRow.appendChild(adminBtn);
             }

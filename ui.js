@@ -2,6 +2,7 @@ window.state = window.state || {
     allMarkets: [],
     filteredMarkets: [],
     category: localStorage.getItem("last_category") || "all",
+    sportsType: localStorage.getItem("last_sports_type") || "",
     search: "",
     loading: true,
     lastUpdate: null,
@@ -30,6 +31,10 @@ window.setCategory = function (category) {
 
     const active = normalizeCategory(category || "all");
     window.state.category = active;
+    if (active !== "sports") {
+        window.state.sportsType = "";
+        localStorage.removeItem("last_sports_type");
+    }
     localStorage.setItem("last_category", active);
     document.querySelectorAll('.category-filter-row .pill').forEach(pill => {
         pill.classList.remove('active');
@@ -39,6 +44,22 @@ window.setCategory = function (category) {
         }
     });
 
+    applyStateAndRender();
+};
+
+window.setSportsType = function (sport) {
+    window.state.category = "sports";
+    window.state.sportsType = normalizeCategory(sport || "");
+    localStorage.setItem("last_category", "sports");
+    if (window.state.sportsType) {
+        localStorage.setItem("last_sports_type", window.state.sportsType);
+    } else {
+        localStorage.removeItem("last_sports_type");
+    }
+    document.querySelectorAll('.category-filter-row .pill').forEach(pill => {
+        const pillCat = normalizeCategory(pill.dataset.cat || pill.innerText);
+        pill.classList.toggle('active', pillCat === "sports");
+    });
     applyStateAndRender();
 };
 
@@ -58,6 +79,9 @@ function applyStateAndRender() {
                     (m.league?.toLowerCase().includes("premier")) ||
                     (m.league?.toLowerCase().includes("laliga"))
                 );
+            }
+            if (active === "sports") {
+                return cat === "sports" || cat === "football" || m.id?.startsWith("sp_") || m.id?.startsWith("fb_");
             }
             return cat === active;
         });
@@ -80,7 +104,9 @@ window.applyStateAndRender = applyStateAndRender;
 function renderApp() {
     renderFilteredMarkets();
     renderTrending();
-    loadGreeting();
+    if (document.getElementById("greetingText")) {
+        loadGreeting();
+    }
     // The balance display is now handled by renderBalanceDisplay in app.js
     // which uses renderBalanceCard.
 }
@@ -188,7 +214,7 @@ function openTrendingMarket(id) {
     if (!market) return;
 
     if (market.category) {
-        setCategory(market.category);
+        setCategory(market.category === "football" || market.id?.startsWith("fb_") ? "sports" : market.category);
     }
 
     openMarket(id);
@@ -202,6 +228,11 @@ function renderFilteredMarkets() {
     if (!mainGrid) return;
 
     const allMarkets = (state.filteredMarkets || []);
+
+    if (state.category === "sports") {
+        renderSportsPage(mainGrid, allMarkets);
+        return;
+    }
 
     // 1. Split into groups
     const live = allMarkets.filter(m => m.status === 'live');
@@ -259,14 +290,81 @@ function renderFilteredMarkets() {
 
     mainGrid.innerHTML = html || `<div style="padding:20px;">No markets found. Searching for elite aura...</div>`;
 }
+
+function renderSportsPage(container, sportsMarkets) {
+    const source = (sportsMarkets || [])
+        .filter(m => normalizeCategory(m.category) === "sports" || normalizeCategory(m.category) === "football" || m.id?.startsWith("sp_") || m.id?.startsWith("fb_"));
+    const selected = normalizeCategory(state.sportsType || "");
+    const sportLabelFor = (m) => normalizeCategory(m.category) === "football" || m.id?.startsWith("fb_") ? "Football" : (m.country || m.sport || "Other");
+    const sportNames = [...new Set(source.map(sportLabelFor))]
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+
+    let html = `
+        <div class="sports-page">
+            <div class="sports-page-header">
+                <button class="pill" onclick="window.setCategory('all')" style="background:#333;color:white;border:none;">Back to All Markets</button>
+                ${selected ? `<button class="pill active" onclick="window.setSportsType('')">All Sports</button>` : ''}
+            </div>
+    `;
+
+    if (!source.length) {
+        container.innerHTML = `${html}
+            <div class="empty-state" style="padding:24px;">
+                Sports markets are syncing. Check again shortly.
+            </div>
+        </div>`;
+        return;
+    }
+
+    if (!selected) {
+        html += `
+            <div class="main-category-label" style="color:#00ff88;font-weight:800;padding:10px 0;">SPORTS</div>
+            <div class="sports-category-grid">
+                ${sportNames.map(name => {
+                    const normalized = normalizeCategory(name);
+                    const count = source.filter(m => normalizeCategory(sportLabelFor(m)) === normalized).length;
+                    return `
+                        <button class="sports-category-card" onclick="window.setSportsType('${escapeHtml(normalized)}')">
+                            <span>${escapeHtml(name)}</span>
+                            <small>${count} matches</small>
+                        </button>
+                    `;
+                }).join('')}
+            </div>
+        </div>`;
+        container.innerHTML = html;
+        return;
+    }
+
+    const label = sportNames.find(name => normalizeCategory(name) === selected) || selected;
+    const matches = source
+        .filter(m => normalizeCategory(sportLabelFor(m)) === selected)
+        .sort((a, b) => `${a.league || ""} ${a.title || ""}`.localeCompare(`${b.league || ""} ${b.title || ""}`));
+
+    html += `<div class="main-category-label" style="color:#00ff88;font-weight:800;padding:10px 0;">${escapeHtml(label).toUpperCase()} MATCHES</div>`;
+
+    let lastLeague = "";
+    matches.forEach(m => {
+        const league = m.league || "Global";
+        if (league !== lastLeague) {
+            html += `<div class="section-label" style="font-size:0.7rem;color:#777;margin-top:12px;">${escapeHtml(league.toUpperCase())}</div>`;
+            lastLeague = league;
+        }
+        html += createMarketCard(m);
+    });
+
+    container.innerHTML = `${html}</div>`;
+}
 function createMarketCard(m) {
     const isFootball = m.category === "football" || m.id?.startsWith("fb_");
+    const isSports = m.category === "sports" || m.id?.startsWith("sp_");
     const isNews = m.category === "news";
     const safeTitle = ((isNews ? m.betQuestion : m.title) || "").replace(/'/g, "\\'");
     const displayTitle = escapeHtml(isNews ? (m.betQuestion || m.title) : m.title) || 'Unknown Market';
 
     // Determine badge and color
-    let badgeText = (m.league || m.source || "GLOBAL").toUpperCase();
+    let badgeText = (isSports ? `${m.country || 'Sports'}${m.league ? ` - ${m.league}` : ''}` : (m.league || m.source || "GLOBAL")).toUpperCase();
     let badgeColor = isNews ? "#00ff88" : "#888";
     const boostBadge = m.is_boosted ? `<span style="background: rgba(255, 214, 0, 0.12); color:#ffd60a; border:1px solid rgba(255,214,0,0.2); padding:4px 10px; border-radius:999px; font-size:0.68rem; font-weight:700;">BOOSTED +10%</span>` : '';
 
@@ -294,7 +392,7 @@ function createMarketCard(m) {
         </div>
     </div>
 
-    ${isFootball 
+    ${isFootball || isSports 
         ? `
         <div style="display:flex; align-items:center; gap:12px; margin:10px 0;">
             <div class="team-abbr">${(m.title.split(" vs ")[0] || "??").substring(0,3).toUpperCase()}</div>
@@ -759,6 +857,10 @@ function applyFilters(source) {
 
         if (active === "football") {
             return cat === "football" || m.id?.startsWith("fb_");
+        }
+
+        if (active === "sports") {
+            return cat === "sports" || cat === "football" || m.id?.startsWith("sp_") || m.id?.startsWith("fb_");
         }
 
         return cat === active;

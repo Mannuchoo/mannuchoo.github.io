@@ -129,6 +129,9 @@ async function loadModules() {
             const html = await res.text();
             const el = document.getElementById(mod.id);
             if (el) el.innerHTML = html;
+            if (mod.file === "profile.html" && typeof window.initAvatarUpload === "function") {
+                window.initAvatarUpload();
+            }
         } catch (err) {
             console.error("Module load failed:", mod.file, err);
         }
@@ -337,6 +340,7 @@ window.openAdminPanel = async function() {
                         <label style="color:#888; font-size:0.7rem;">CATEGORY</label>
                         <select id="adminMarketCategory" style="width:100%; padding:12px; background:#000; border:1px solid #333; color:white; border-radius:8px; margin-top:5px;">
                             <option value="football">Football</option>
+                            <option value="sports">Sports</option>
                             <option value="crypto">Crypto</option>
                             <option value="politics">Politics</option>
                             <option value="news">News</option>
@@ -962,6 +966,29 @@ window.toggleSidebar = toggleSidebar;
 
 let selectedAvatarFile = null;
 
+window.openAvatarPreview = function(src) {
+    const imageSrc = src || document.getElementById("userAvatar")?.src || document.getElementById("headerAvatar")?.src;
+    if (!imageSrc) return;
+
+    document.getElementById("avatarPreviewOverlay")?.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "avatarPreviewOverlay";
+    overlay.className = "avatar-preview-overlay";
+    overlay.onclick = (e) => {
+        if (e.target === overlay) overlay.remove();
+    };
+    overlay.innerHTML = `
+        <div class="avatar-preview-card" onclick="event.stopPropagation()">
+            <img src="${imageSrc}" alt="Profile picture">
+            <div class="avatar-preview-actions">
+                <button class="pill active" onclick="document.getElementById('avatarInput')?.click(); document.getElementById('avatarPreviewOverlay')?.remove();">Change Picture</button>
+                <button class="pill" onclick="document.getElementById('avatarPreviewOverlay')?.remove();">Close</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+};
+
 function initAvatarUpload() {
     const input = document.getElementById("avatarInput");
     const saveBtn = document.getElementById("saveAvatarBtn");
@@ -971,8 +998,15 @@ function initAvatarUpload() {
 
     if (!input || !saveBtn || !cancelBtn || !avatar || !actions) return;
 
-    // SELECT → PREVIEW
-    input.addEventListener("change", (e) => {
+    avatar.onclick = () => window.openAvatarPreview(avatar.src);
+    avatar.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            window.openAvatarPreview(avatar.src);
+        }
+    };
+
+    input.onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -984,10 +1018,9 @@ function initAvatarUpload() {
         };
         reader.readAsDataURL(file);
 
-        actions.classList.add("active"); // show buttons
-    });
+        actions.classList.add("active");
+    };
 
-    // SAVE → UPLOAD
     saveBtn.onclick = async () => {
         if (!selectedAvatarFile) return;
 
@@ -998,6 +1031,8 @@ function initAvatarUpload() {
             const token = localStorage.getItem("token");
             if (!token) return alert("You must be logged in to save your avatar.");
 
+            saveBtn.disabled = true;
+            saveBtn.innerText = "Saving...";
             const res = await fetch(apiUrl('/api/update-avatar'), {
                 method: "POST",
                 headers: {
@@ -1013,29 +1048,33 @@ function initAvatarUpload() {
                 return alert(data.message || "Avatar upload failed");
             }
 
-            if (data.success) {
-                const avatarUrl = window.assetUrl ? window.assetUrl(data.avatarUrl || data.url || data.avatarPath) : (data.avatarUrl || data.url || data.avatarPath);
-                avatar.src = avatarUrl;
-                const headerAvatar = document.getElementById("headerAvatar");
-                if (headerAvatar && avatarUrl) headerAvatar.src = avatarUrl;
-                if (avatarUrl) localStorage.setItem('saved_avatar_url', avatarUrl);
-                selectedAvatarFile = null;
-                actions.classList.remove("active");
-                fetchProfile?.();
-            }
-
+            const avatarUrl = window.assetUrl ? window.assetUrl(data.avatarUrl || data.url || data.avatarPath) : (data.avatarUrl || data.url || data.avatarPath);
+            avatar.src = avatarUrl;
+            const headerAvatar = document.getElementById("headerAvatar");
+            if (headerAvatar && avatarUrl) headerAvatar.src = avatarUrl;
+            if (avatarUrl) localStorage.setItem('saved_avatar_url', avatarUrl);
+            selectedAvatarFile = null;
+            input.value = "";
+            actions.classList.remove("active");
+            fetchProfile?.();
         } catch (err) {
             console.error(err);
+            alert(err.message || "Avatar upload failed. Please try again.");
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerText = "Save";
         }
     };
 
     cancelBtn.onclick = () => {
         selectedAvatarFile = null;
+        input.value = "";
         actions.classList.remove("active");
-
-        fetchProfile();
+        fetchProfile?.();
     };
 }
+window.initAvatarUpload = initAvatarUpload;
+
 function updateMatchRealtime(update) {
     const card = document.querySelector(`[data-id="${update.id}"]`);
     if (!card) return;
@@ -1288,3 +1327,4 @@ function renderMpesaLog(logs, type = 'all') {
         .map(log => window.renderTransactionItem ? window.renderTransactionItem(log) : '')
         .join('');
 }
+
