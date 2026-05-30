@@ -1055,7 +1055,10 @@ function initAvatarUpload() {
                 return alert(data.message || "Avatar upload failed");
             }
 
-            const avatarUrl = window.assetUrl ? window.assetUrl(data.avatarUrl || data.url || data.avatarPath) : (data.avatarUrl || data.url || data.avatarPath);
+            const rawAvatarUrl = data.avatarUrl || data.url || data.avatarPath;
+            const avatarUrl = window.avatarAssetUrl
+                ? window.avatarAssetUrl(rawAvatarUrl)
+                : (window.assetUrl ? window.assetUrl(rawAvatarUrl) : rawAvatarUrl);
             avatar.src = avatarUrl;
             const headerAvatar = document.getElementById("headerAvatar");
             if (headerAvatar && avatarUrl) headerAvatar.src = avatarUrl;

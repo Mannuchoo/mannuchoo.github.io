@@ -73,7 +73,7 @@ app.use(express.json());
 app.use(cors());
 // Serve a default avatar fallback when the explicit default.png file is missing
 app.get('/uploads/avatars/default.png', (req, res) => {
-    const fallback = path.join(publicPath, 'uploads', 'avatars', 'avatar-1778927214826-353713367.jpg');
+    const fallback = path.join(publicPath, 'logo-mark.png');
     if (fs.existsSync(fallback)) return res.sendFile(fallback);
     res.status(404).end();
 });
@@ -514,6 +514,9 @@ function publicAssetUrl(req, assetPath) {
     if (configuredBase) return `${configuredBase.replace(/\/+$/, '')}${cleanPath}`;
     const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0].trim();
     const host = String(req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
+    if (!host || /ngrok|localhost|127\.0\.0\.1/i.test(host)) {
+        return `https://api.polysoko.online${cleanPath}`;
+    }
     return `${proto}://${host}${cleanPath}`;
 }
 

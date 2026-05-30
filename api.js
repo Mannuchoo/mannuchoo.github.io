@@ -30,6 +30,19 @@ function assetUrl(path, fallback = "") {
 
 window.assetUrl = assetUrl;
 
+function avatarAssetUrl(path, fallback = "logo-mark.png") {
+    const value = path || fallback;
+    if (!value) return "";
+    const badRemote = /^https?:\/\/[^/]*(ngrok|localhost|127\.0\.0\.1)/i.test(value);
+    const badDefault = /\/uploads\/avatars\/default\.png$/i.test(value);
+    if (badRemote || badDefault) {
+        return assetUrl(fallback);
+    }
+    return assetUrl(value, fallback);
+}
+
+window.avatarAssetUrl = avatarAssetUrl;
+
 function getToken() {
     return localStorage.getItem("token");
 }
@@ -193,7 +206,7 @@ async function fetchProfile() {
         // Fix: Prepend API_BASE for images when hosted on GitHub Pages
 
         const defaultAvatar = "logo-mark.png";
-        const avatarUrl = assetUrl(u.avatar_url, defaultAvatar);
+        const avatarUrl = avatarAssetUrl(u.avatar_url, defaultAvatar);
         const fallbackAvatarUrl = assetUrl(defaultAvatar);
         if (document.getElementById("userAvatar")) {
             document.getElementById("userAvatar").src = avatarUrl;
@@ -203,14 +216,18 @@ async function fetchProfile() {
             document.getElementById("headerAvatar").src = avatarUrl;
             document.getElementById("headerAvatar").onerror = function() { this.onerror = null; this.src = fallbackAvatarUrl; };
         }
-        localStorage.setItem('saved_avatar_url', avatarUrl);
+        if (u.avatar_url && !/\/uploads\/avatars\/default\.png$/i.test(u.avatar_url)) {
+            localStorage.setItem('saved_avatar_url', avatarUrl);
+        } else {
+            localStorage.removeItem('saved_avatar_url');
+        }
     }
 }
 
 function restoreSavedAvatar() {
     const avatarUrl = localStorage.getItem('saved_avatar_url');
     if (!avatarUrl) return;
-    const normalized = assetUrl(avatarUrl);
+    const normalized = avatarAssetUrl(avatarUrl);
     if (document.getElementById("userAvatar")) document.getElementById("userAvatar").src = normalized;
     if (document.getElementById("headerAvatar")) document.getElementById("headerAvatar").src = normalized;
 }
