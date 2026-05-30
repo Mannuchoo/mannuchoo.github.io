@@ -4,12 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>News Market Details | PolySoko</title>
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/ui.js" defer></script>
-    <script src="/api.js" defer></script>
-    <script src="/app.js" defer></script>
+    <script>
+        (function(){
+            var host = window.location.hostname || "";
+            var isLocal = host === "localhost" || host === "127.0.0.1";
+            var script = document.createElement("script");
+            script.src = isLocal ? "/socket.io/socket.io.js" : "https://cdn.socket.io/4.7.2/socket.io.min.js";
+            document.head.appendChild(script);
+        })();
+    </script>
+    <script src="ui.js" defer></script>
+    <script src="api.js" defer></script>
+    <script src="app.js" defer></script>
     <style>
         .news-detail-page {
             min-height: 100vh;
@@ -183,7 +191,7 @@
         <div class="logo">POLYSOKO</div>
     </div>
     <button class="profile-trigger" id="profileBtn">
-        <img id="headerAvatar" src="/uploads/avatars/default.png" class="header-avatar" alt="" onerror="this.onerror=null;this.src='/uploads/avatars/default.png'">
+        <img id="headerAvatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" class="header-avatar" alt="" style="background:#222;">
         👤 <span id="userNameHeader">User</span>
     </button>
 </header>
@@ -237,7 +245,7 @@
     window.onload = async () => {
         const token = localStorage.getItem("token");
         if (!token) {
-            window.location.href = "/login.html";
+            window.location.href = "login.html";
             return;
         }
 

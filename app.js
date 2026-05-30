@@ -117,7 +117,15 @@ async function loadModules() {
 
     for (const mod of modules) {
         try {
-            const res = await fetch(`./modules/${mod.file}`);
+            const modulePaths = [`./modules/${mod.file}`, `./${mod.file}`];
+            let res = null;
+            for (const path of modulePaths) {
+                res = await fetch(path);
+                if (res.ok) break;
+            }
+            if (!res || !res.ok) {
+                throw new Error(`Unable to load ${mod.file}`);
+            }
             const html = await res.text();
             const el = document.getElementById(mod.id);
             if (el) el.innerHTML = html;

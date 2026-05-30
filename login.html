@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PolySoko | Login</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body class="auth-page">
     <!-- Forgot Password Modal -->
@@ -96,7 +96,7 @@
         </div>
     </div>
 
-    <script src="/api.js"></script>
+    <script src="api.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         function showTermsModal() {
@@ -141,7 +141,7 @@
 
                 if (data.success && data.token) {
                     localStorage.setItem("token", data.token);
-                    window.location.href = "/index.html";
+                    window.location.href = "index.html";
                     return;
                 }
 

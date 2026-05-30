@@ -831,7 +831,7 @@ button, input, select {
 
     <div class="sidebar-footer">
 
-        <button class="btn-text" onclick="location.href='/'">🏠 Back to Site</button>
+        <button class="btn-text" onclick="location.href='index.html'">🏠 Back to Site</button>
 
         <button class="btn-text danger" onclick="adminLogout()">🚪 Logout</button>
 
@@ -1250,7 +1250,7 @@ button, input, select {
 
         <div id="superAdminProfile" class="admin-profile-card">
             <div class="avatar-wrapper">
-                <img id="superAdminAvatar" src="/uploads/avatars/default.png" alt="Admin avatar" onerror="this.onerror=null; this.src='/uploads/avatars/default.png';">
+                <img id="superAdminAvatar" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" alt="Admin avatar" style="background:#222;">
             </div>
             <div class="admin-profile-details">
                 <h2 id="superName">SuperAdmin</h2>
@@ -2165,7 +2165,7 @@ function clearMarketForm() {
 /* ================= AUTH ================= */
 window.adminLogout = function() {
     localStorage.clear();
-    location.href = "/login.html?redirect=admin.html";
+    location.href = "login.html?redirect=admin.html";
 };
 
 /* ================= AUTO REFRESH ================= */

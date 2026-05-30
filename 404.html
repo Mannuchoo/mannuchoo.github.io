@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PolySoko | Redirecting</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: grid;
+            place-items: center;
+            background: #070b10;
+            color: #e6edf3;
+            font-family: Arial, sans-serif;
+        }
+        .not-found-panel {
+            width: min(92vw, 420px);
+            border: 1px solid rgba(0, 255, 136, 0.25);
+            border-radius: 12px;
+            background: #111820;
+            padding: 28px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        }
+        .not-found-panel h1 {
+            margin: 0 0 10px;
+            color: #00ff88;
+            font-size: 1.6rem;
+        }
+        .not-found-panel p {
+            margin: 0 0 22px;
+            color: #9ca3af;
+            line-height: 1.5;
+        }
+        .not-found-panel a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 0 18px;
+            border-radius: 8px;
+            background: #00ff88;
+            color: #050505;
+            font-weight: 800;
+            text-decoration: none;
+        }
+    </style>
+    <script>
+        (function () {
+            var base = window.location.origin + "/";
+            if (window.location.pathname !== "/" && !window.location.pathname.endsWith("/404.html")) {
+                window.location.replace(base);
+            }
+        })();
+    </script>
+</head>
+<body>
+    <main class="not-found-panel">
+        <h1>PolySoko</h1>
+        <p>That page was not found. Taking you back to the live market dashboard.</p>
+        <a href="index.html">Open Dashboard</a>
+    </main>
+</body>
+</html>

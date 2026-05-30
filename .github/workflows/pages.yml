@@ -28,10 +28,16 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload public artifact
+      - name: Prepare static site
+        run: |
+          mkdir -p site
+          cp index.html login.html reset.password.html news-detail.html admin.html style.css api.js app.js ui.js CNAME .nojekyll 404.html site/
+          cp -f profile.html sidebar.html history.html site/ 2>/dev/null || true
+
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: PS/public
+          path: site
 
       - name: Deploy
         id: deployment
